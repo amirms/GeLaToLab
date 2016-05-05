@@ -1,0 +1,11 @@
+Package: GeLaToLab
+Type: Package
+Title: GELATOLAB
+Version: 1.0
+Date: 2016-05-05
+Author: Amir M. Saeidi
+Maintainer: Amir M. Saeidi<A.M.Saeidi@uu.nl>
+Description: A collection of visualization tools and algorithms for data analysis and machine learning focused on source code analysis
+License: What Licence is it under ?
+Imports: Rcpp (>= 0.11.1)
+LinkingTo: Rcpp
