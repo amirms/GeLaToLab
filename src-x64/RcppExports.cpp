@@ -67,15 +67,3 @@ BEGIN_RCPP
     return __result;
 END_RCPP
 }
-// collectNondominated
-SEXP collectNondominated(SEXP pop, SEXP arch);
-RcppExport SEXP GeLaToLab_collectNondominated(SEXP popSEXP, SEXP archSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject __result;
-    Rcpp::RNGScope __rngScope;
-    Rcpp::traits::input_parameter< SEXP >::type pop(popSEXP);
-    Rcpp::traits::input_parameter< SEXP >::type arch(archSEXP);
-    __result = Rcpp::wrap(collectNondominated(pop, arch));
-    return __result;
-END_RCPP
-}

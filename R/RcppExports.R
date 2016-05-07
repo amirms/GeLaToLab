@@ -21,7 +21,3 @@ computeRandomNeighbors <- function(group, columns, k, n) {
     .Call('GeLaToLab_computeRandomNeighbors', PACKAGE = 'GeLaToLab', group, columns, k, n)
 }
 
-collectNondominated <- function(pop, arch) {
-    .Call('GeLaToLab_collectNondominated', PACKAGE = 'GeLaToLab', pop, arch)
-}
-
