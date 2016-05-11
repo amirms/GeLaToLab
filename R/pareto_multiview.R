@@ -1,91 +1,56 @@
-#computes the Pareto front for multi view learning
-# Input: a list of graph laplacians for each view
+avg_lap <- function(Laps) {
+  apply(simplify2array(Laps), 1:2, mean)
+}
 
-#compute the normalized laplacians on the kernels
+norm_vec <- function(x) sqrt(sum(x^2))
 
-generalized_pareto_multiview <- function(L1, L2, L3) {
+compute_all_cuts <- function(L1, L2){
+  v = geigen(L1, L2) #VERIFIED
+ 
+  #Remove the eigenvectors associated with eigenvalues zero and infinity
+  vals <- v$values
+  # #     
+  zerov <- min(abs(vals))
+  infv <- max(vals)
   
-  require(geigen)
-  require(ggplot2)
+  vec <- v$vectors
   
-  avg_lap <- function(Laps) {
-    apply(simplify2array(Laps), 1:2, mean)
-  }
-  
-  #TODO check the dimensions match
-
-  N = dim(L1)[1]
+  vec <- vec[,-c(which(vals==zerov), which(vals==(-zerov)), which(vals==infv))]  
   
   norm_vec <- function(x) sqrt(sum(x^2))
   
-  Laps <- list(L1, L2, L3)
+  #normalize each vector - VERIFIED
+  for (i in 1:dim(vec)[2])
+    vec[,i] = vec[,i] / norm_vec(vec[,i])
   
-  compute_all_cuts <- function(L1, L2){
-    v = geigen(L1, L2) #VERIFIED
-    #   v = eigen(solve(L2)%*%L1) 
-    #Remove the eigenvectors associated with eigenvalues zero and infinity
-    vals <- v$values
-# #     
-    zerov <- min(abs(vals))
-    infv <- max(vals)
-    
-    vec <- v$vectors
-    
-    vec <- vec[,-c(which(vals==zerov), which(vals==(-zerov)), which(vals==infv))]  
-#   vec <- vec[,-c(which(vals==zerov), which(vals==(-zerov)))]  
-    
-    #normalize each vector - VERIFIED
-    for (i in 1:dim(vec)[2])
-      vec[,i] = vec[,i] / norm_vec(vec[,i])
-  
-    vec
-  }
+  vec
+}
 
-  is_dominated <- function(cut, included_cuts) {
+#Input: a cut with N number of cuts
+is_dominated <- function(cut, included_cuts) {
+  
+  for(i in 1:length(included_cuts)){
+   
+    stopifnot(length(cut)==length(included_cuts[[i]]$costs))
     
-    cost1 <- cut$cost1
-    cost2 <- cut$cost2
-    cost3 <- cut$cost3  
-    print(cost1)
-    print(cost2)
-    print(cost3)
+    if (all(unlist(included_cuts[[i]]$costs) < unlist(cut)))
+      return(TRUE)
     
-    for(i in 1:length(included_cuts)){
-      
-      cur_cost1 <- included_cuts[[i]]$cost1
-      cur_cost2 <- included_cuts[[i]]$cost2
-      cur_cost3 <- included_cuts[[i]]$cost3
-      
-      print(cur_cost1)
-      print(cur_cost2)
-      print(cur_cost3)
-      
-      print((cur_cost1 < cost1) & (cur_cost2 < cost2) & (cur_cost3 < cost3))
-      
-      if ((cur_cost1 < cost1) & (cur_cost2 < cost2) & (cur_cost3 < cost3))
-        return(TRUE)
- 
-    }
-    
-    return(FALSE)
   }
+    
+  return(FALSE)
+}
 
 #return Indices
-dominates <- function(cut, included_cuts) {
-  
-  cost1 <- cut$cost1
-  cost2 <- cut$cost2
-  cost3 <- cut$cost3   
+dominates <- function(cut, included_cuts) {  
   
   indices <- c()
   
   for(i in 1:length(included_cuts)){
     
-    cur_cost1 <- included_cuts[[i]]$cost1
-    cur_cost2 <- included_cuts[[i]]$cost2
-    cur_cost3 <- included_cuts[[i]]$cost3
+    stopifnot(length(cut)==length(included_cuts[[i]]$costs))
     
-    if ((cur_cost1 >= cost1) & (cur_cost2 >= cost2) & (cur_cost3 >= cost3))
+    if (all(unlist(included_cuts[[i]]$costs) >= unlist(cut)))
       indices <- c(indices, i)
     
   }
@@ -94,295 +59,106 @@ dominates <- function(cut, included_cuts) {
 }
 
 
-  compute_pareto_front <- function(cost1, cost2, cost3, I, vec) {
-    #TODO cost1 and cost2 should have the same length
-    N <- length(cost1)
+#Input: a list of costs costs
+
+compute_pareto_front <- function(costs, I, vec) {
+  #TODO all costs should have the same length
+  N <- length(costs[[1]])
+  
+  ex = list() # The cuts to be excluded
+  U = list() # The output
+  iter = 0
+  pick = 0
+  
+  included_cuts <- list()
+  
+  initial_costs <- lapply(costs, function(cost) cost[1])
+  included_cuts[[length(included_cuts) + 1]] <- list(costs = initial_costs, U=vec[,1])
+  
+  for (i in 2 : N){
     
-    ex = list() # The cuts to be excluded
-    U = list() # The output
-    iter = 0
-    pick = 0
+    current_costs <- lapply(costs, function(cost) cost[i])
     
-    included_cuts <- list()
-    
-    included_cuts[[length(included_cuts) + 1]] <- list(cost1 = cost1[1], cost2 = cost2[1], cost3=cost3[1], U=vec[,1])
-    
-    for (i in 2 : N){
+    if(!is_dominated(current_costs, included_cuts)) {
+      indices <- dominates(current_costs, included_cuts)
       
-      print(paste(cost1[i], cost2[i], cost3[i]))
-      print(paste(included_cuts[[1]]$cost1, included_cuts[[1]]$cost2, included_cuts[[1]]$cost3))
-      
-      if(!is_dominated(list(cost1=cost1[i], cost2=cost2[i], cost3=cost3[i]), included_cuts)) {
-        
-        indices <- dominates(list(cost1=cost1[i], cost2=cost2[i], cost3=cost3[i]), included_cuts)
-        
       if (!is.null(indices))
         included_cuts <- included_cuts[-indices]
       
-        included_cuts[[length(included_cuts) + 1]] <- list(cost1 = cost1[i], cost2 = cost2[i], cost3=cost3[i], U=vec[,i])
-      
-      }
+      included_cuts[[length(included_cuts) + 1]] <- list(costs = current_costs, U=vec[,i])
       
     }
     
-    
-    included_cuts
-    
-    
   }
 
-  vec1 <- compute_all_cuts(L1, avg_lap(list(L2, L3)))
-  vec2 <- compute_all_cuts(L2, avg_lap(list(L1, L3)))
-  vec3 <- compute_all_cuts(L3, avg_lap(list(L1, L2)))
+  included_cuts
   
-  vec <- cbind(vec1, vec2, vec3)
+}
+
+
+#computes the Pareto front for multi view learning
+# Input: a list of graph laplacians for each view, i.e. Ls
+
+#compute the normalized laplacians on the kernels
+
+compute_generalized_pareto_multiview <- function(Ls, combine_pareto_front=T) {
   
-  #   print(dim(L1))
-  #   print(dim(vec))
+  require(geigen)
+  require(ggplot2)
   
-  #   stop("as")
+  #TODO Stopifnot(length(Ls) >= 2)
   
-  #   vec <- row.normalize(vec)
-  cost1 <- diag(t(vec) %*% L1 %*% vec);
-  cost2 <- diag(t(vec)%*%L2%*%vec)
-  cost3 <- diag(t(vec)%*%L3%*%vec)
-  #[Y,I] = sort(cost1,'ascend');
+  #TODO check the dimensions match  
+  N = dim(Ls[[1]])[1]
   
-  require(scatterplot3d)
-  s3d <- scatterplot3d(cost1,cost2,cost3, main="Pareto Frontier", color="blue",  pch=3)
-  
-#   require(rgl)
-#   is3d <- plot3d(cost1,cost2,cost3,  col="red", size=10)
-  
-  
-  I <- order(cost1)
-  cost1 <- sort(cost1)
-  #   cost2 = cost2(I);
-  cost2 <- cost2[I]
-  cost3 <- cost3[I]
+  vecs = list()
   
   
-  pareto_front <- compute_pareto_front(cost1, cost2, cost3, I, vec)
+  #TODO check to see if this makes any sense
+  #ALso column bind the resulting vectors
+  vec =c()
+#   print("reached here")
+  for(i in 1:length(Ls)){
+    temp <- compute_all_cuts(Ls[[i]], avg_lap(Ls[-i]))
+    vec <- cbind(vec, temp)
+    vecs[[i]] <- temp #Expensive operation
+  }
+#   print("reached here2")
+  costs <- lapply(Ls, function(L) diag(t(vec) %*% L %*% vec))
+  
+  #___
+#   require(scatterplot3d)
+#   s3d <- scatterplot3d(cost1,cost2,cost3, main="Pareto Frontier", color="blue",  pch=3)
+  #___
+  
+  #order the costs based on the first cost
+  I <- order(costs[[1]])
+  costs[[1]] <- sort(costs[[1]])
+  
+  for (i in 2:length(costs))
+    costs[[i]] <- costs[[i]][I]
+  
+  pareto_front <- compute_pareto_front(costs, I, vec)
 
   print("number of cuts")
   print(length(pareto_front))
 
-  pareto_cost1 <- unlist(lapply(pareto_front, function(p) p$cost1  ))
-  pareto_cost2 <- unlist(lapply(pareto_front, function(p) p$cost2  ))
-  pareto_cost3 <- unlist(lapply(pareto_front, function(p) p$cost3  ))
-  
-  s3d$points3d(pareto_cost1, pareto_cost2, pareto_cost3, cex=1.5, pch=16, col = "dark red")
+  pareto_costs <- unlist(lapply(pareto_front, function(p) p$costs))
+
+  #______
+#   s3d$points3d(pareto_cost1, pareto_cost2, pareto_cost3, cex=1.5, pch=16, col = "dark red")
+  #______
 
   pareto_U <- lapply(pareto_front, function(p) p$U)
 
+  if (!combine_pareto_front)
+    return(pareto_U)
 
   pareto_U <- matrix(unlist(pareto_U), ncol = length(pareto_U), byrow = TRUE)
 
-rownames(pareto_U) <- rownames(L1)
+  rownames(pareto_U) <- rownames(Ls[[1]])
+
   return(pareto_U)
-
-#   
-#   compute_pareto_front2 <- function(cost1, cost2, I, L1, L2, vec){
-#     
-#     #TODO cost1 and cost2 should have the same length
-#     N <- length(cost1)
-#     
-#     ex = list() # The cuts to be excluded
-#     U = list() # The output
-#     iter = 0
-#     pick = 0
-#     
-#     #   return(U)
-#     while (length(U) < 1){
-#       
-#       # Pick the smallest cut for Graph A, excluding those in ex
-#       for (i in 1:N)
-#         #if (ismember(I[i],ex)==false) {
-#         if (!(I[i] %in% unlist(ex))) {
-#           U_ind = i
-#           break
-#         }
-#       
-#       print(U_ind)
-#       
-#       # Compute the Pareto frontier
-#       cur_cost <- cost2[U_ind]
-#       #     cur_cost3 <- cost3[U_ind]
-#       
-#       start <- U_ind
-#       
-#       for (i in start:(N-1))
-#         #if ((cost2[i+1] < cur_cost) && (ismember(I(i+1),ex)==false)) {
-#         if ((cost2[i+1] < cur_cost) && (!(I[i+1] %in% unlist(ex)))) {
-#           #U_ind = [U_ind, i+1]
-#           U_ind = c(U_ind, i+1)
-#           cur_cost <- cost2[i+1]
-#         }
-# 
-#       ex[[length(ex)+1]] =t(I[U_ind])
-# #       U_ind <- as.matrix(U_ind)
-#       if (iter > 0) { # Skip first pass
-#         #         fprintf('iter:\t%d\n', iter);
-#         #for i=1:size(U_ind,2)
-#         for (i in 1:length(U_ind)){
-#           #   if nnz(vec(:,I(U_ind(i)))>0)>0 && nnz(vec(:,I(U_ind(i)))<0)>0
-#           #U = [U, vec(:,I(U_ind(i)))];
-#           U[[length(U) + 1]] = vec[,I[U_ind[i]]]
-#           pick <- pick + 1
-#           #fprintf('%d\t%f\t%f\n', pick, cost1(U_ind(i)), cost2(U_ind(i)));
-#           #           s3d$points3d(cost1[U_ind[i]],cost2[U_ind[i]], cost3[U_ind[i]], cex=1.5, col = "dark red");
-#           print("printing the costs")
-#           print(c(cost1[U_ind[i]],cost2[U_ind[i]]))
-#           #text(cost1(U_ind(i)),cost2(U_ind(i)),int2str(pick),'Color',[1 0 0]);
-#           #   end
-#         }       
-#       }
-#       
-#       iter <- iter + 1;
-#       
-#     }
-#     
-# #     return(ex)
-# #     
-# #     print("printing all the indices")
-# #     print(U_ind)
-# #     
-# # #     return(U_ind)
-# #     
-#     return(list(U=U, U_ind=U_ind))
-#     
-# #     print("The number of picks:")
-# #     print(pick)
-#     
-# #     print("Exlcuded cuts:")
-# #     print(ex)
-#     # stop("as")
-#     
-#     # return(U_ind)
-#     U <- matrix(unlist(U), ncol = length(U), byrow = TRUE)
-#     
-#     cost1 = diag(t(U)%*%L1%*%U);
-#     cost2 = diag(t(U)%*%L2%*%U);
-# #     cost3 = diag(t(U)%*%L3%*%U);
-#     
-#     
-#     return(list(U = U, cost1 = cost1, cost2=cost2, cost3=cost3))
-#   }
-# 
-#   vec1 <- compute_all_cuts(L1, avg_lap(list(L2, L3)))
-#   vec2 <- compute_all_cuts(L2, avg_lap(list(L1, L3)))
-#   vec3 <- compute_all_cuts(L3, avg_lap(list(L1, L2)))
-#   
-#   vec <- cbind(vec1, vec2, vec3)
-#   
-# #   print(dim(L1))
-# #   print(dim(vec))
-#   
-# #   stop("as")
-#   
-# #   vec <- row.normalize(vec)
-#   cost1 <- diag(t(vec) %*% L1 %*% vec);
-#   cost2 <- diag(t(vec)%*%L2%*%vec)
-#   cost3 <- diag(t(vec)%*%L3%*%vec)
-#   #[Y,I] = sort(cost1,'ascend');
-# 
-# require(scatterplot3d)
-# s3d <- scatterplot3d(cost1,cost2,cost3, main="Pareto Frontier")
-# 
-# require(rgl)
-# is3d <- plot3d(cost1,cost2,cost3,  col="red", size=10)
-# 
-# 
-#   I <- order(cost1)
-#   cost1 <- sort(cost1)
-# #   cost2 = cost2(I);
-#   cost2 <- cost2[I]
-#   cost3 <- cost3[I]
-# 
-# 
-# U_1<- compute_pareto_front(cost1, cost2, I, L1, L2,  vec)
-# U_2 <- compute_pareto_front(cost1, cost3, I, L1, L3, vec)
-# 
-# 
-# U_indices <- union(U_1$U_ind, U_2$U_ind)
-# 
-# 
-# 
-# s3d$points3d(cost1[U_indices],cost2[U_indices], cost3[U_indices], cex=1.5, col = "dark red")
-# 
-# #compute the third duo-dimension
-# I <- order(cost2)
-# cur_cost2 <- sort(cost2)
-# 
-# #   cost2 = cost2(I);
-# cur_cost3 <- cost3[I]
-# cur_cost1 <- cost1[I]
-# 
-# U_3 <- compute_pareto_front(cur_cost2, cur_cost3, I, L2, L3, vec)
-# 
-# t <- 0
-# for(i in 1:length(U_3$U_ind)){
-#   
-#   index <- U_3$U_ind[i]
-#   
-#   if (!((cur_cost2[index] %in% cost2[U_indices]) && (cur_cost3[index] %in% cost3[U_indices])))
-#       t <- t + 1
-#   
-# }
-# 
-# s3d$points3d(cur_cost1[U_3$U_ind],cur_cost2[U_3$U_ind], cur_cost3[U_3$U_ind], cex=1.5, size=10, col = "dark red")
-# print("printing the number of cuts")
-# 
-# print(length(U_indices) + t)
-# 
-# # Us <- union(U_1$U, U_2$U, U_3$U)
-# 
-# Us <- Reduce(union,  list(U_1$U, U_2$U, U_3$U))
-# 
-# U <- matrix(unlist(Us), ncol = length(Us), byrow = TRUE)
-# 
-# rownames(U) <- rownames(L1)
-# 
-# 
-# return(U)
-
-# print(list(cost1[U_1],cost2[U_1], cost3[U_1]))
-# 
-# print(list(cost1[U_2],cost2[U_2], cost3[U_2]))
-
-
-# 
-# print(list(cost1[U_3],cost2[U_3], cost3[U_3]))
-# 
-# 
-# s3d$points3d(cost1[U_3],cost2[U_3], cost3[U_3], cex=1.5, col = "dark red")
-# 
-# U_indices <- Reduce(union,  list(U_1, U_2, U_3))
-
-#   plot(cost1, cost2, col="blue")
-
-
-
-
-
-
-
-  
-
-
-
-
-
-# prname <- "junit-4.12"
-# ggsave(filename= paste("benchmark", prname ,"pareto_frontier.png", sep="/"), plot=plot, pointsize = 15, width = 10, height = 10)
-
-
-
-
-
-return(U)
-
-# return(list(cost1=cost1, cost2=cost2))
 
 }
 

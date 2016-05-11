@@ -206,7 +206,7 @@ compute.multiview <- function(prname, choice, k=0, rootFolder="org", pattern = "
     kernels[[4]] <- add.kernels(list(cfg.kernel, lexsim.kernel, freq.kernel))
     kernels[[5]] <- product.kernels(list(cfg.kernel, lexsim.kernel, freq.kernel))
     kernels[[6]] <- compute.cotraining(list(cfg.kernel, lexsim.kernel, freq.kernel), k, iter=50, priori.decomp, prname)
-    kernels[[7]] <- generalized_pareto_multiview(laplacian(cfg.kernel, TRUE), laplacian(lexsim.kernel, TRUE), laplacian(freq.kernel, TRUE))    
+    kernels[[7]] <- compute_generalized_pareto_multiview(list(laplacian(cfg.kernel, TRUE), laplacian(lexsim.kernel, TRUE), laplacian(freq.kernel, TRUE)))    
   }
   else
     kernels <- list(switch(choice,
@@ -216,7 +216,7 @@ compute.multiview <- function(prname, choice, k=0, rootFolder="org", pattern = "
            MKL.Add = add.kernels(list(cfg.kernel, lexsim.kernel, freq.kernel)),
            MKL.Prod = product.kernels(list(cfg.kernel, lexsim.kernel, freq.kernel)),
            CT = compute.cotraining(list(cfg.kernel, lexsim.kernel, freq.kernel), k, iter=50, priori.decomp, prname),
-           MO = generalized_pareto_multiview(laplacian(cfg.kernel, TRUE), laplacian(lexsim.kernel, TRUE), laplacian(freq.kernel, TRUE)))
+           MO = compute_generalized_pareto_multiview(list(laplacian(cfg.kernel, TRUE), laplacian(lexsim.kernel, TRUE), laplacian(freq.kernel, TRUE))))
             )
 
   
