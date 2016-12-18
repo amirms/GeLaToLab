@@ -234,7 +234,7 @@ spectral.clustering <- function(L, k, iter = 10) {
 
   for (i in 1:iter) {
   
-    cl = kmeans(V$vectors,k, iter.max = 300, nstart = 200)
+    cl = kmeans(V$vectors,k, iter.max = 2000, nstart = 20000)
 
     current_BSS_TSS = cl$betweenss / cl$tot.withinss
 

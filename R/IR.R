@@ -345,7 +345,7 @@ strip.java.text <- function(txt, lengthLowerBound=1) {
   return(txt)
 }
 
-
+#
 
 
 # Turn a string into a vector of words
@@ -441,6 +441,10 @@ reservedwords <- function(p) {
 make.BoW <- function(x) {
   
   BoW <- c()
+  
+  if(length(x) == 0)
+    return(BoW)
+  
   for(i in 1:length(x)){
   
     if (x[i] %in% names(BoW))
@@ -743,6 +747,31 @@ normalize.names <- function(mydata) {
 range01 <- function(x){(x-min(x))/(max(x)-min(x))}
 
 
+compute_bow_identifier_name_similarity <- function(identifierNames,  nat.langs="english", prog.langs="java"){
+  
+  mydata <- lapply(identifierNames, function(identifierName) strip.java.text(identifierName))
+  
+  for (i in 1:length(prog.langs))
+    mydata <- prepare.prog.lang.list(mydata, prog.langs[i])
+  
+  for (i in 1:length(nat.langs)) 
+    mydata <- prepare.natural.lang.list(mydata, nat.langs[i])
+  
+  names(mydata) <- identifierNames
+  
+  mydata <- mydata[-which(unlist(lapply(mydata, function(data) length(data) ==0)))]
+  
+  mydata.BoW.list <- make.BoW.list(mydata)
+  
+  mydata.BoW.frame <- make.BoW.frame(mydata.BoW.list, names(mydata.BoW.list))
+  
+  mydata.BoW.idf.frame <- idf.weight(mydata.BoW.frame)
+  
+  sim <- compute_cosine_kernel(mydata.BoW.idf.frame)
+  
+  return(sim)
+}
+
 
 apply.bow <- function(dirname, pattern, nat.langs, prog.langs) {
   
@@ -762,6 +791,9 @@ apply.bow <- function(dirname, pattern, nat.langs, prog.langs) {
   
   mydata.BoW.frame <- make.BoW.frame(mydata.BoW.list, names(mydata.BoW.list))
   
+  mydata.BoW.idf.frame.t <- t(na.omit(mydata.BoW.idf.frame))
+  
+  sim <- compute_cosine_kernel(Phi_d)
   
   return(mydata.BoW.frame)
 }
@@ -813,6 +845,7 @@ apply.lsa <- function(dirname, pattern, nat.langs, prog.langs) {
   #compute cosine similariry
   
   mydata.BoW.idf.frame.t <- t(na.omit(mydata.BoW.idf.frame))
+
   
   mydata.Cos.sim.matrix <- similarities(mydata.BoW.idf.frame.t)
   
