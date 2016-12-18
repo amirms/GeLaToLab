@@ -43,6 +43,8 @@ bound.range.string.kernel = function(txts, len, lam=1) {
 constant.string.kernel = function(txts) {
   require(kernlab)
   
+  txts <- tolower(txts)
+  
   sk <- stringdot(type="constant", normalized=TRUE)
   
   k <- kernelMatrix(sk, txts)
