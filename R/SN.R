@@ -1,6 +1,6 @@
 prepare.Bow <- function(prname, rootFolder="org", pattern = "*.java", prog.langs=c("java"), nat.langs=c("english")){
   require(igraph)
-  require(gelato)
+  require(GeLaToLab)
   setwd("~/workspace")
   setwd(paste("benchmark", prname, sep="/"))
   mydata <- read.directory(rootFolder, pattern)
@@ -40,7 +40,7 @@ prepare.Bow <- function(prname, rootFolder="org", pattern = "*.java", prog.langs
 
 compute.BoW.kernel <- function(prname, size = 0.25, rootFolder="org", pattern = "*.java", prog.langs=c("java"), nat.langs=c("english")){
   require(igraph)
-  require(gelato)
+  require(GeLaToLab)
   setwd("~/workspace")
   
   #Load theauthoritative decomposition
@@ -134,7 +134,7 @@ compute.BoW.kernel <- function(prname, size = 0.25, rootFolder="org", pattern = 
 
 compute.BoF.kernel <- function(prname, size=0.25){
   require(igraph)
-  require(gelato)
+  require(GeLaToLab)
   setwd("~/workspace")
   # Read the authoritative decomposition
   decomposition <- read.csv(paste("benchmark", prname ,"decomposition.csv", sep="/"), sep=",",  header = TRUE)
@@ -223,7 +223,7 @@ adjustedRI <- compute.AdjRI(clusters, priori.decomp)
 compute.BoF.BoW.kernel <- function(prname, size=0.25){
 
     require(igraph)
-    require(gelato)
+    require(GeLaToLab)
     setwd("~/workspace")
     # Read the authoritative decomposition
     decomposition <- read.csv(paste("benchmark", prname ,"decomposition.csv", sep="/"), sep=",",  header = TRUE)
@@ -353,7 +353,7 @@ return(list(mojosim=mojosim, precision=precision, recall=recall, f1.score=f1.sco
 
 compute.semantic.kernel <- function(prname, choice="PR", DIFF = 1, beta=0.5, size= 0.25, ISA_IPO_choice=0, ISA_IPO= c(0.5, 0.5), rootFolder = "org", baseline){
   require(igraph)
-  require(gelato)
+  require(GeLaToLab)
 setwd("~/workspace")
 # Read the authoritative decomposition
 decomposition <- read.csv(paste("benchmark", prname ,"decomposition.csv", sep="/"), sep=",",  header = TRUE)
@@ -604,6 +604,7 @@ load_process_ISA_IPO_SN <- function(prname, beta, ISA_IPO = c(0.5,0.5), rootFold
   
 }
 
+#TESTED
 merge_names_by_lower_case <- function(mydata, dimension=1){
   
 #   stopifnot(dim(adj)[1] == dim(adj)[2])
@@ -638,60 +639,83 @@ merge_names_by_lower_case <- function(mydata, dimension=1){
         duplicates <- c(duplicates, equivalent_indices[[i]][2:length(equivalent_indices[[i]])])
           
   }
-  
-  if (dimension==1)
-    mydata <- mydata[-duplicates,]
-  else
-    mydata <- mydata[,-duplicates]
+  if (any(duplicates))
+    if (dimension==1)
+      mydata <- mydata[-duplicates,]
+    else
+      mydata <- mydata[,-duplicates]
   
 
   return(mydata)
   
 }
 
-
-load_SN <- function(prname, make_symmetric=T, makeTopNode=T, rootNode="java.lang.Object"){
+#TESTED
+load_SN <- function(prname, make_symmetric=T, makeTopNode=T, eliminate_local_variables=T, rootNode="java.lang.Object", identifiers=c()){
   setwd("~/workspace")
-  mySN = read.csv(paste("benchmark", prname , "SN", paste(prname, "SN.csv", sep="-"), sep="/"), sep = ",", dec= ".")
+  mySN = read.csv(paste("benchmark", prname , "SN", paste(prname, "SN.csv", sep="-"), sep="/"), sep = ",", quote = "\"", dec= ".")
   # mySN[which(is.na(mySN[,1])),1] <- NA
-  # rownames(mySN) <- mySN[,1]
+  rownames(mySN) <- mySN[,1]
   mySN <- mySN[,-1]
+  gc()
   mySN <- data.matrix(mySN)
   
-  #FIX the names - some names are ended with a dot
+  gc()
+  colnames(mySN) <- rownames(mySN)
+
+  startIndex <- get.start.index.of.types(colnames(mySN))
   
-  mySN_names <- colnames(mySN)
-  for(i in 1:length(mySN_names)){
-    name <- mySN_names[i]
-    last_char <- substr(name, nchar(name), nchar(name))
-    if (last_char==".")
-      mySN_names[i] <- substr(name, 1, nchar(name)-1)
+  #Siz of dictionary
+  D <-startIndex-1
+  
+  #Some memory optimization #1
+#   x <- merge_names_by_lower_case(mySN[1:startIndex-1,], 1)
+#   y <- mySN[startIndex:nrow(mySN),]
+#   mySN <- 0
+#   gc()
+#   
+#   mySN <- rbind(x, y)
+#   x<-0
+#   y <- 0
+#   gc()
+#   
+#   
+#   #Some memory optimization #2
+#   x <- merge_names_by_lower_case(mySN[,1:startIndex-1], 2)
+#   y <- mySN[,startIndex:ncol(mySN)]
+#   mySN <- 0
+#   gc()
+#   mySN <- cbind(x,y)
+#   x<-0
+#   y <- 0
+#   gc()
+
+#Filter on the identifiers; otherwise use all the identifiers
+#It is safe to intersect on uppercase (camel-case for Java)
+
+# NOW all info
+# identifiers <- rownames(mySN[1:D,])
+  if (length(identifiers) > 0){
+    lower_case_sensitive_identifiers <- tolower(rownames(mySN)[1:D])
     
+    case_insensitive_identifiers <- intersect(lower_case_sensitive_identifiers, tolower(identifiers))
+    
+    identifier_indices <- which(lower_case_sensitive_identifiers %in% case_insensitive_identifiers)
+
+    mySN <- rbind(merge_names_by_lower_case(mySN[identifier_indices,], 1), mySN[startIndex:nrow(mySN),])  
+    mySN <- cbind(merge_names_by_lower_case(mySN[,identifier_indices], 2), mySN[,startIndex:ncol(mySN)])
+    
+  }else{
+    mySN <- rbind(merge_names_by_lower_case(mySN[1:D,], 1), mySN[startIndex:nrow(mySN),])  
+    mySN <- cbind(merge_names_by_lower_case(mySN[,1:D], 2), mySN[,startIndex:ncol(mySN)])
   }
-  colnames(mySN) <- mySN_names 
-  rownames(mySN) <- mySN_names
- 
-  
-  #FIND THE STARTING INDEX OF TYPE NAMES  
-  classTypeIndex <- which(unlist(gregexpr(pattern ="\\.",mySN_names)) > 0)[1]
-  primitiveTypeIndices <- which(mySN_names %in% c("float", "int", "char", "byte", "void", "double", "boolean"))
-  startIndex <- min(c(classTypeIndex, primitiveTypeIndices))
-  
-  mySN <- rbind(merge_names_by_lower_case(mySN[1:startIndex-1,], 1), mySN[startIndex:nrow(mySN),])  
-  mySN <- cbind(merge_names_by_lower_case(mySN[,1:startIndex-1], 2), mySN[,startIndex:ncol(mySN)])
-  
+
   setTopNode <- function(Adj, rootNode){
     require(igraph)
     stopifnot(all(rownames(Adj)== colnames(Adj)))
     names <- colnames(Adj)
-    #   names <- rownames(Adj)
-    
-    #FIND THE STARTING INDEX OF TYPE NAMES  
-    classTypeIndex <- which(unlist(gregexpr(pattern ="\\.",names)) > 0)[1]
-    primitiveTypeIndices <- which(names %in% c("float", "int", "char", "byte", "void", "double", "bool"))
-    startIndex <- min(c(classTypeIndex, primitiveTypeIndices))
+    startIndex <- get.start.index.of.types(names)
 
-    
     print("First Type Node found at:")
     print(startIndex)
     
@@ -700,11 +724,18 @@ load_SN <- function(prname, make_symmetric=T, makeTopNode=T, rootNode="java.lang
     #size of types
     V <- dim(Adj)[2] - startIndex +1
 
-    S <- Adj[startIndex:dim(Adj)[1], startIndex:dim(Adj)[2]] 
-    dimnames(S) <- dimnames(Adj[startIndex:dim(Adj)[1], startIndex:dim(Adj)[2]])
-
-    topNode <- which(rownames(S) == rootNode)  
+    gc()
+    dims <- dim(Adj)
     
+    
+    S <- Adj[startIndex:dims[1], startIndex:dims[2]]
+    Adj_dimnames <- dimnames(Adj)
+
+    
+    rownames(S) <- Adj_dimnames[[1]][startIndex:dims[1]]
+    colnames(S) <- colnames(Adj)[startIndex:dims[2]]
+    
+    topNode <- which(rownames(S) == rootNode)  
     
     g <- graph.adjacency(S, mode='directed', diag=FALSE)
     
@@ -715,21 +746,71 @@ load_SN <- function(prname, make_symmetric=T, makeTopNode=T, rootNode="java.lang
         s <- shortest.paths(g, v=topNode, to=i, mode="in")
         
         if (s==Inf){
-          
           Adj[colnames(s), rownames(s)] <- 1
           
           count <- count+1
         }
-        
       }
     
     Adj
   }
   
+
+
+  remove_empty_nodes <- function(Adj){
+    #Remove nodes with no edges
+    empty_rows <- which(apply(Adj,1,FUN = function(x){all(x == 0)}))
+    empty_cols <- which(apply(Adj,2,FUN = function(x){all(x == 0)}))
+    exclude_empty_elements <- intersect(empty_rows, empty_cols)
+    
+    if (length(exclude_empty_elements) > 0)
+      Adj <- Adj[-exclude_empty_elements, -exclude_empty_elements]
+    
+    Adj
+  }
+
+  mySN <- remove_empty_nodes(mySN)
+
   #Make a virtual top node, i.e. java.lang.Object
   if (makeTopNode)
     mySN <- setTopNode(mySN, rootNode)
   
+
+  #Eliminate Local variables
+  eliminateLocalVariables <- function(Adj){
+    #find the start Index for the types in SN
+    names <- colnames(Adj)
+    startIndex <- get.start.index.of.types(names)
+
+    print("starting Index")
+    print(startIndex)
+    
+    #size of Dictionary
+    D <- startIndex - 1
+    
+    #Remove contaninmet dependencies from method names to local variables
+    Adj[1:D,1:D] <- 0
+
+    # Get the type contents
+    C <- Adj[startIndex:dim(Adj)[1], 1:D] 
+    dimnames(C) <- dimnames(Adj[startIndex:dim(Adj)[1], 1:D])
+    
+    exposed_identifiers <- colSums(C)
+    excluded_names_indices <- which(exposed_identifiers == 0)
+    
+    Adj <- Adj[-excluded_names_indices, -excluded_names_indices]
+    
+  
+    Adj <- remove_empty_nodes(Adj)
+    
+    Adj
+  }
+
+
+  if (eliminate_local_variables)
+    mySN <- eliminateLocalVariables(mySN)
+
+
   if (make_symmetric){
     mySN <- 0.5 * (mySN + t(mySN))
     mySN <- mySN[which(!apply(mySN,1,FUN = function(x){all(x == 0)})),which(!apply(mySN,2,FUN = function(x){all(x == 0)}))]
@@ -745,7 +826,7 @@ load_SN <- function(prname, make_symmetric=T, makeTopNode=T, rootNode="java.lang
 }    
 
 process_All_SN <- function(Adj, beta){
-  
+  require(igraph)
   #   Adj <- load_SN(prname)
   
   g <- build.graph(Adj)
@@ -756,13 +837,20 @@ process_All_SN <- function(Adj, beta){
   r
 }
 
+get.start.index.of.types <- function(mySN_names){
+  
+  #FIND THE STARTING INDEX OF TYPE NAMES  
+  classTypeIndex <- which(unlist(gregexpr(pattern ="\\.",mySN_names)) > 0)[1]
+  primitiveTypeIndices <- which(mySN_names %in% c("float", "int", "char", "byte", "void", "double", "boolean"))
+  startIndex <- min(c(classTypeIndex, primitiveTypeIndices))
+  startIndex
+}
+
 process_ISA_SN <- function(Adj, beta, rootFolder="org"){
   #remove Adj of types to identifier names
   #find the first occurence of a type name in the colnames(ADj), set everything else to 0
   names <- colnames(Adj)
-  #   names <- rownames(Adj)
-  
-  startIndex <- which(unlist(gregexpr(pattern = paste(rootFolder, ".", sep=""),names)) > 0)[1]
+  startIndex <- get.start.index.of.types(names)
   
   #Also remove contaninmet dependencies from method names to local variables
   for (i in 1:dim(Adj)[1])
@@ -780,9 +868,7 @@ process_ISA_SN <- function(Adj, beta, rootFolder="org"){
 
 process_IPO_SN <- function(Adj, beta, rootFolder="org"){
   names <- rownames(Adj)
-  #   names <- rownames(Adj)
-  
-  startIndex <- which(unlist(gregexpr(pattern = paste(rootFolder, ".", sep=""),names)) > 0)[1]
+  startIndex <- get.start.index.of.types(names)
   
   for (i in 1:(startIndex-1))
     for (j in startIndex:dim(Adj)[2])
@@ -799,34 +885,21 @@ process_IPO_SN <- function(Adj, beta, rootFolder="org"){
 
 #Input: rows are documents, columns are identifiernames
 compute_cosine_kernel <- function(Phi_d){
-  norm_vec <- function(x) sqrt(sum(x^2))
-  kernel <- matrix(0, nrow(Phi_d), nrow(Phi_d))
+  cos.sim <- function(ix) 
+  {
+    A = Phi_d[ix[1],]
+    B = Phi_d[ix[2],]
+    return( sum(A*B)/sqrt(sum(A^2)*sum(B^2)) )
+  }   
+  n <- nrow(Phi_d) 
+  cmb <- expand.grid(i=1:n, j=1:n) 
+  kernel <- matrix(apply(cmb,1,cos.sim),n,n)
   
-  for (i in 1:nrow(Phi_d))
-    for (j in 1: nrow(Phi_d))
-      kernel[i,j] <- (t(Phi_d[i,]) %*% Phi_d[j,]) / (norm_vec(Phi_d[i,]) * norm_vec(Phi_d[j,]))
   
-  kernel[!is.finite(kernel)] <- 0
   rownames(kernel) <- rownames(Phi_d)
   colnames(kernel) <- rownames(kernel)
   
   kernel
-  
-}
-
-
-compute.MDS <- function(kernel) {
-
-  #MDS & Plotting
-  fit <- cmdscale(kernel,eig=TRUE, k=2) # k is the number of dim
-  fit # view results
-  
-  # plot solution 
-  x <- fit$points[,1]
-  y <- fit$points[,2]
-  plot(x, y, xlab="Coordinate 1", ylab="Coordinate 2", 
-       main="Metric  MDS",	type="n")
-  text(x, y, labels = row.names(mydata), cex=.7)
 }
 
 
@@ -857,25 +930,22 @@ get_top_sample_docs <- function(prname, decomp, size = 30, top = 5){
 
 get_sample_docs <- function(prname, decomp, size=0.25){
   require(igraph)
-  require(gelato)
+  require(GeLaToLab)
   setwd("~/workspace")
   
-  if (file.exists(paste("benchmark", prname , "Sample", paste(prname, "Sample.txt", sep="-"), sep="/"))) {
-    names <- read.table(paste("benchmark", prname , "Sample", paste(prname, "Sample.txt", sep="-"), sep="/"))
-    return(names$V1)
-  }
+  LOWER_LIMIT = 4
+  
   #number of clusters
   noc <- max(decomp)
   
   names <- unlist(lapply(1:noc, function(x) {
     cls = decomp[decomp==x]
-    if (length(cls) > 3)
-      names(cls[sample(1:length(cls), ceiling(length(cls) * size))])
+    if (length(cls) >= LOWER_LIMIT)
+#       names(cls[sample(1:length(cls), ceiling(length(cls) * size))])
+      names(cls)
     else
       c()
   }))
-  
-  write(names, paste("benchmark", prname , "Sample", paste(prname, "Sample.txt", sep="-"), sep="/"))
   
   names
 }
