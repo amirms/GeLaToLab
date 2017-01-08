@@ -917,7 +917,11 @@ run_in_batch_mode_each_project <- function(prname, size=0.25){
   
     # for (j in 1:length(compiled_eval.funs)){
 
-  no_cores <- detectCores() - 1
+  #Create results directory, if it doesn't exist
+  dir.create(file.path(getwd(), paste("benchmark", prname, "Results/EnrichedBoF", sep="/")), showWarnings = FALSE)
+  
+  # no_cores <- detectCores() - 1
+  no_cores <- 3
   cl<-makeCluster(no_cores)
   registerDoParallel(cl)
   
@@ -934,16 +938,16 @@ run_in_batch_mode_each_project <- function(prname, size=0.25){
       if (j %in% c(1,4)) {
         semantic <- diag(dim(sim_kernel)[2])
         r <- compiled_compute_semantic_similarity_clustering(semantic, myBoF, priori.decomp)
-        print_clustering_results(prname, r, txt.file = paste("TYPE_BoF_", j, "SN_FILTERED_3_SPHERICAL_KMEANS_7_CHARS.txt", sep=""))
+        print_clustering_results(prname, r, txt.file = paste("Results/EnrichedBoF/TYPE_BoF_", j, ".txt", sep=""))
       }
       
       semantic <- sim_kernel
       r <- compiled_compute_semantic_similarity_clustering(semantic, myBoF, priori.decomp)
-      print_clustering_results(prname, r, txt.file = paste("TYPE_ISA_", j, "SN_FILTERED_3_SPHERICAL_KMEANS_7_CHARS.txt", sep=""))
+      print_clustering_results(prname, r, txt.file = paste("Results/EnrichedBoF/TYPE_ISA_", j, ".txt", sep=""))
       
       semantic <- string_kernel * sim_kernel
       r <- compiled_compute_semantic_similarity_clustering(semantic, myBoF, priori.decomp)
-      print_clustering_results(prname, r, txt.file = paste("TYPE_ISA_STRING_", j, "_SN_FILTERED_3_SPHERICAL_KMEANS_7_CHARS.txt", sep=""))
+      print_clustering_results(prname, r, txt.file = paste("Results/EnrichedBoF/TYPE_ISA_STRING_", j, ".txt", sep=""))
       
   }
   stopCluster(cl)
