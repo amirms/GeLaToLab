@@ -34,7 +34,7 @@ load_BoF <- function(prname, id2t = c(T, F) ){
     
     colnames(myBoF) <- combined_names
     
-    return(myBoF)
+    return(list(myBoF=myBoF, identifiers= identifiers, types=types))
   }
 
   #Only return the identifiers
@@ -997,7 +997,17 @@ compute_semantic_similarity_clustering <- function(semantic, myBoF, priori.decom
   dimnames(Phi_d) <- dimnames(myBoF)
   Phi_d <- Phi_d[order(rownames(Phi_d)),]
   
-  #TODO REMOVE duplicated rows
+  print("Dimensions of Phi_d before Cleansing")
+  print(dim(Phi_d))
+  
+  #Remove empty rows
+  Phi_d <- Phi_d[ apply(Phi_d!=0, 1, any), , drop=FALSE] 
+  # #Remove duplicated rows
+  # Phi_d <- Phi_d[!duplicated(Phi_d),]
+  
+  
+  print("Dimensions of Phi_d after Cleansing")
+  print(dim(Phi_d))
   
   #ADD LATER IF SPHERICAL k-means doesn't work
 #   kernel <- compute_cosine_kernel(Phi_d)

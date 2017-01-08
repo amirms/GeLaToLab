@@ -655,6 +655,12 @@ load_SN <- function(prname, make_symmetric=T, makeTopNode=T, eliminate_local_var
   setwd("~/workspace")
   mySN = read.csv(paste("benchmark", prname , "SN", paste(prname, "SN.csv", sep="-"), sep="/"), sep = ",", quote = "\"", dec= ".")
   # mySN[which(is.na(mySN[,1])),1] <- NA
+  indices <- which(is.na(mySN[,1]))
+  
+  if(length(indices) > 0){
+    mySN <- mySN[-indices, - (indices + 1)]
+  }
+  
   rownames(mySN) <- mySN[,1]
   mySN <- mySN[,-1]
   gc()
@@ -756,6 +762,21 @@ load_SN <- function(prname, make_symmetric=T, makeTopNode=T, eliminate_local_var
   }
   
 
+  remove_unknown_node <- function(Adj) {
+    
+    allNames <- colnames(Adj)
+    
+    startIndex <- get.start.index.of.types(allNames)
+    
+    #Remove unknown type
+    unknownIdx <- which(allNames[startIndex:length(allNames)] == "Unknown")
+    
+    if(length(unknownIdx) > 0)
+      Adj <- Adj[-unknownIdx,-unknownIdx]
+      
+    Adj
+  }
+  
 
   remove_empty_nodes <- function(Adj){
     #Remove nodes with no edges
@@ -769,6 +790,7 @@ load_SN <- function(prname, make_symmetric=T, makeTopNode=T, eliminate_local_var
     Adj
   }
 
+  mySN <- remove_unknown_node(mySN)
   mySN <- remove_empty_nodes(mySN)
 
   #Make a virtual top node, i.e. java.lang.Object
