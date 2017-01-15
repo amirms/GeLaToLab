@@ -752,7 +752,7 @@ run_in_batch_mode_each_project <- function(prname, size=0.25){
   #populate different settings
   
   eval.funs <- c(compute_inverted_path_length, compute_Wu_Palmer_similarity, compute_Leacock_Chodorow_similarity, 
-                 compute_conceptual_density, compute_Lin_similarity,  compute_Resnik_similarity )
+                 compute_conceptual_density)
   
   # Compile the functions used in the foreach loop
   
@@ -774,51 +774,51 @@ run_in_batch_mode_each_project <- function(prname, size=0.25){
   cl<-makeCluster(no_cores)
   registerDoParallel(cl)
   
-  foreach(j = 1:length(compiled_eval.funs)) %dopar% {
-      sim <- compiled_run_each_setting(weights, compiled_eval.funs[[j]], T, compiled_lex.fun, Adj, myBoF)
-      
-      #Unpack result
-      priori.decomp <- sim$priori.decomp
-      myBoF <- sim$myBoF
-      string_kernel <- sim$string_kernel
-      sim_kernel <- sim$sim_kernel
-      
-      #Just check to for two of the eval.funs to ensure they are working on equivalent filtered SN
-      if (j %in% c(1,4)) {
-        semantic <- diag(dim(sim_kernel)[2])
-        r <- compiled_compute_semantic_similarity_clustering(semantic, myBoF, priori.decomp)
-        print_clustering_results(prname, r, txt.file = paste("Results/EnrichedBoF/TYPE_BoF_", j, ".txt", sep=""))
-      }
-      
-      semantic <- sim_kernel
-      r <- compiled_compute_semantic_similarity_clustering(semantic, myBoF, priori.decomp)
-      print_clustering_results(prname, r, txt.file = paste("Results/EnrichedBoF/TYPE_ISA_", j, ".txt", sep=""))
-      
-      semantic <- string_kernel * sim_kernel
-      r <- compiled_compute_semantic_similarity_clustering(semantic, myBoF, priori.decomp)
-      print_clustering_results(prname, r, txt.file = paste("Results/EnrichedBoF/TYPE_ISA_STRING_", j, ".txt", sep=""))
-      
-  }
-  stopCluster(cl)
+  # foreach(j = 1:length(compiled_eval.funs)) %dopar% {
+  #     sim <- compiled_run_each_setting(weights, compiled_eval.funs[[j]], T, compiled_lex.fun, Adj, myBoF)
+  #     
+  #     #Unpack result
+  #     priori.decomp <- sim$priori.decomp
+  #     myBoF <- sim$myBoF
+  #     string_kernel <- sim$string_kernel
+  #     sim_kernel <- sim$sim_kernel
+  #     
+  #     #Just check to for two of the eval.funs to ensure they are working on equivalent filtered SN
+  #     if (j %in% c(1,4)) {
+  #       semantic <- diag(dim(sim_kernel)[2])
+  #       r <- compiled_compute_semantic_similarity_clustering(semantic, myBoF, priori.decomp)
+  #       print_clustering_results(prname, r, txt.file = paste("Results/EnrichedBoF/TYPE_BoF_", j, ".txt", sep=""))
+  #     }
+  #     
+  #     semantic <- sim_kernel
+  #     r <- compiled_compute_semantic_similarity_clustering(semantic, myBoF, priori.decomp)
+  #     print_clustering_results(prname, r, txt.file = paste("Results/EnrichedBoF/TYPE_ISA_", j, ".txt", sep=""))
+  #     
+  #     semantic <- string_kernel * sim_kernel
+  #     r <- compiled_compute_semantic_similarity_clustering(semantic, myBoF, priori.decomp)
+  #     print_clustering_results(prname, r, txt.file = paste("Results/EnrichedBoF/TYPE_ISA_STRING_", j, ".txt", sep=""))
+  #     
+  # }
+  # stopCluster(cl)
   
 
-#   lex.funs <- c(normalized_LCS_kernel, normalized_LCU_kernel, constant.string.kernel)
-# 
-#   for (i in 1:length(lex.funs)){
-#     
-#     sim <- run_each_setting(c(1,0), NULL, T, lex.funs[[i]], Adj, myBoF)
-# 
-#     #Unpack result
-#     priori.decomp <- sim$priori.decomp
-#     myBoF <- sim$myBoF
-#     string_kernel <- sim$string_kernel
-#     sim_kernel <- sim$sim_kernel
-#     
-#     semantic <- string_kernel
-#     r <- compute_semantic_similarity_clustering(semantic, myBoF, priori.decomp)
-#     print_clustering_results(prname, r, txt.file = paste("SN_FILTERED_BY_3_STRING", i, ".txt", sep=""))
-#   
-#   }
+  lex.funs <- c(normalized_LCS_kernel, normalized_LCU_kernel, constant.string.kernel)
+  compiled_lex.funs <- lapply(lex.funs, function(f) cmpfun(f))
+  
+  foreach(j = 1:length(compiled_lex.funs)) %dopar% {
+    sim <- compiled_run_each_setting(weights, NULL, T, compiled_lex.fun, Adj, myBoF)
+    
+    #Unpack result
+    priori.decomp <- sim$priori.decomp
+    myBoF <- sim$myBoF
+    string_kernel <- sim$string_kernel
+    
+    semantic <- string_kernel
+    r <- compiled_compute_semantic_similarity_clustering(semantic, myBoF, priori.decomp)
+    print_clustering_results(prname, r, txt.file = paste("Results/EnrichedBoF/STRING_", j, ".txt", sep=""))
+    
+  }
+  stopCluster(cl)
 
 }
 
@@ -990,7 +990,6 @@ compute_string_semantic_diffusion_kernels <- function(prname, beta=0.5){
   myBoF <- myBoF[,identifierIndices]
   
   #remove classes with no identifiers, when combined with the semantic network
-  
   myBoF <- myBoF[which(!apply(myBoF,1,FUN = function(x){all(x == 0)})),] 
   myBoF <- myBoF[order(rownames(myBoF)), order(colnames(myBoF))]
 
@@ -1013,6 +1012,9 @@ compute_string_semantic_diffusion_kernels <- function(prname, beta=0.5){
   return(list(priori.decomp=priori.decomp, myBoF=myBoF, string_kernel=string_kernel, sim_kernel=sim_kernel))
 }
 
+#Create results directory, if it doesn't exist
+dir.create(file.path(getwd(), paste("benchmark", prname, "Results/EnrichedBoF", sep="/")), showWarnings = FALSE)
+
   sim <- compute_string_semantic_diffusion_kernels(prname)
   #Unpack result
   priori.decomp <- sim$priori.decomp
@@ -1022,17 +1024,17 @@ compute_string_semantic_diffusion_kernels <- function(prname, beta=0.5){
 
   semantic <- diag(dim(sim_kernel)[2])
   r <- compute_semantic_similarity_clustering(semantic, myBoF, priori.decomp)
-  print_clustering_results(prname, r, txt.file = "DIFF_BoF_WITH_SN_WITH_SMALL_ELIMINATED.txt")
-# 
-#   semantic <- sim_kernel
-#   r <- compute_semantic_similarity_clustering(semantic, myBoF, priori.decomp)
-#   print_clustering_results(prname, r, txt.file = "DIFF_WITH_SN_WITH_SMALL_ELIMINATED.txt")
+  print_clustering_results(prname, r, txt.file = "Results/EnrichedBoF/DIFF_BoF_WITH_BETA_0_5.txt")
+
+  semantic <- sim_kernel
+  r <- compute_semantic_similarity_clustering(semantic, myBoF, priori.decomp)
+  print_clustering_results(prname, r, txt.file = "Results/EnrichedBoF/DIFF_WITH_SN_WITH_BETA_0_5.txt")
 
   semantic <- string_kernel * sim_kernel
   r <- compute_semantic_similarity_clustering(semantic, myBoF, priori.decomp)
-  print_clustering_results(prname, r, txt.file = "DIFF_STRING_WITH_SN.txt")
+  print_clustering_results(prname, r, txt.file = "Results/EnrichedBoF/DIFF_STRING_WITH_SN_WITH_BETA_0_5.txt")
   
 }
 
-    projects <- list("apache-ant-1.9.3", "hadoop-0.20.2", "apache-log4j-1.2.17",
-"jdom-2.0.5", "jedit-5.1.0", "jfreechart-1.2.0", "jhotdraw-7.0.6", "junit-4.12" ,"weka-3.6.11", "eclipse-jdt-core-3.8")
+#     projects <- list("apache-ant-1.9.3", "hadoop-0.20.2", "apache-log4j-1.2.17",
+# "jdom-2.0.5", "jedit-5.1.0", "jfreechart-1.2.0", "jhotdraw-7.0.6", "junit-4.12" ,"weka-3.6.11", "eclipse-jdt-core-3.8")
