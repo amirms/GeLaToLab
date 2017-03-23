@@ -87,7 +87,7 @@ compute.random.walk.sim <- function(prname, lex.fun= compute_normalized_LCS, alp
   
   r <- fill_lower_diagonal(r)
   
-  dimnames(r) <- list(filenames, filenames)
+  dimnames(r) <- list(names(dependencies), names(dependencies))
     
   return (r)
   }

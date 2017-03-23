@@ -4,7 +4,7 @@
 # filename3 <- "BeanShell.java.csv"
 
 PATH = "C:/Users/AmirM/Documents/workspace/eclipse/org.servicifi.gelato.clustering/csv"
-PRNAME = "test-project"
+PRNAME = "test-project2"
 
 visualize.semantic.network <- function(path = PATH, prname=PRNAME) {
   require(igraph)
@@ -29,7 +29,9 @@ visualize.semantic.network <- function(path = PATH, prname=PRNAME) {
   # return(g)
 }
 
-#filename1 = "org/employee/Employee.java.csv"
+# filename1 = "org/employee/Employee.java.csv"
+# filename2 = "org/employee/Manager.java.csv"
+# filename3 = "org/employee/Sample.java.csv"
 #folder1 = ""
 
 visualize.semantic.dependency.graph <- function(path = PATH, prname=PRNAME, filename) {

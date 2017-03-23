@@ -950,19 +950,43 @@ get_top_sample_docs <- function(prname, decomp, size = 30, top = 5){
   
 }
 
-get_sample_docs <- function(prname, decomp, size=0.25){
+eliminate_small_packages <- function(filenames) {
+  
+  paths <- lapply(filenames, function(filename) {
+    g <- grep("/", strsplit(filename, "")[[1]])
+    lastChar <- g[length(g)]
+    substr(filename, 1, lastChar-1)
+  })
+  paths <- unlist(unique(paths))
+  
+  decomp <- lapply(filenames, function(filename) {
+    g <- grep("/", strsplit(filename, "")[[1]])
+    lastChar <- g[length(g)]
+    p <- substr(filename, 1, lastChar-1)
+    
+    which(paths %in% p)
+  
+  })
+  decomp <- unlist(decomp)
+  
+  decomp <- GeLaToLab::normalizeVector(decomp)
+  names(decomp) <- filenames
+  
+  get_sample_docs("", decomp)
+  
+}
+
+
+get_sample_docs <- function(prname, decomp, size=0.25, lower.limit=3){
   require(igraph)
   require(GeLaToLab)
-  setwd("~/workspace")
-  
-  LOWER_LIMIT = 4
-  
+
   #number of clusters
   noc <- max(decomp)
   
   names <- unlist(lapply(1:noc, function(x) {
     cls = decomp[decomp==x]
-    if (length(cls) >= LOWER_LIMIT)
+    if (length(cls) >= lower.limit)
 #       names(cls[sample(1:length(cls), ceiling(length(cls) * size))])
       names(cls)
     else
