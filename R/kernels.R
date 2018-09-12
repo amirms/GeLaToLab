@@ -20,6 +20,8 @@ exponential.decay.kernel  = function(txts, lam) {
   
   k <- kernelMatrix(sk, txts)
   
+  k[!is.finite(k)] <- 0
+  
   dimnames(k) <- list(names(txts), names(txts))
   
   return(k)
@@ -43,11 +45,11 @@ bound.range.string.kernel = function(txts, len, lam=1) {
 constant.string.kernel = function(txts) {
   require(kernlab)
   
-  txts <- tolower(txts)
+  lower_txts <- tolower(txts)
   
   sk <- stringdot(type="constant", normalized=TRUE)
   
-  k <- kernelMatrix(sk, txts)
+  k <- kernelMatrix(sk, lower_txts)
   
   dimnames(k) <- list(names(txts), names(txts))
   
@@ -165,6 +167,7 @@ Diffusionfct <- function(
 
 build.graph <- function(adj, weighted=T){
   require(igraph)
+  adj <- make.symmetric(adj)
   graph.adjacency(adj, mode='undirected', diag=FALSE, weighted=weighted)
 }
 
@@ -193,7 +196,7 @@ graph.diffusion <- function(g,beta=1,v=V(g),correctNeg=TRUE){
   D <- sqrt(D2)
 #   K <- K[v+1,v+1]
 #   D <- D[v+1,v+1]
-#   dimnames(D) <- list(v,v)
-# dimnames(K) <- list(v,v)
+ #   dimnames(D) <- list(v,v)
+ # dimnames(K) <- list(v,v)
   return(list(kernel=K,dist=D))
 } 

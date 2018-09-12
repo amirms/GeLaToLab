@@ -10,6 +10,18 @@ projects <- list("jdom-2.0.5", "apache-ant-1.9.3", "hadoop-0.20.2", "apache-log4
 # "jdom-2.0.5" Type done, 
 # 
 
+convert_data_frame_0_to_na <- function(prname){
+  
+  setwd("~/workspace")
+  filename <- paste("benchmark", prname , "SN", paste(prname, "SN.csv", sep="-"), sep="/")
+  mySN = read.csv(filename, sep = ",", quote = "\"", dec= ".")
+  mySN[mySN==0] <- NA
+  
+  filename2 <- paste("benchmark", prname , "SN", paste(prname, "SN", "REDUCED",".csv", sep="-"), sep="/")
+  
+  write.table(mySN, file=filename2, row.names=TRUE, col.names=NA,sep = ",", quote =TRUE, dec= ".", na="")
+}
+
 run_random_walk_clustering <- function(projects){
   library(foreach)
   library(doParallel)
@@ -68,7 +80,7 @@ estimate_alpha <- function(dependencies){
 
 
 #lex.fun <- compute_normalized_LCS
-compute.random.walk.sim <- function(prname, lex.fun= compute_normalized_LCS, alpha = 0.5, dirname="org", files=c(), min.nchar=4){
+compute.random.walk.sim <- function(prname, lex.fun= compute_normalized_LCS, alpha = 0.5, dirname="org", files=c(), min.nchar=6){
   library(foreach)
   library(doParallel)
   library(GeLaToLab)

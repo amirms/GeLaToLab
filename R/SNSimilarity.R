@@ -229,7 +229,7 @@ compute_term_similarity  <- function(outIndices, outlinks, outdegree, type_sim){
   
   #Make sure the diagonal of type_sim is 1
   diag(type_sim) <- 1
-  stopifnot(all(type_sim) <= 1)
+  # stopifnot(all(type_sim <= 1))
   
   sim <- matrix(0, nrow=len, ncol=len)
   normalized_sim <- matrix(0, nrow=len, ncol=len)
@@ -477,6 +477,7 @@ compute_conceptual_density <- function(S, C){
       }
   
   CD <- fill_lower_diagonal(CD)
+  dimnames(CD) <- dimnames(S)
 
   CD
 }
@@ -632,7 +633,7 @@ run_in_batch_mode <- function(prnames){
   
 }
 
-run_in_batch_mode_each_project <- function(prname, size=0.25){
+run_in_batch_mode_each_project <- function(prname){
   
   run_each_setting <- function(weights, eval.fun=NULL, normalized=T, lex.fun =NULL,  Adj, myBoF){
     require(igraph)
@@ -708,7 +709,8 @@ run_in_batch_mode_each_project <- function(prname, size=0.25){
       string_kernel <- matrix(1, nrow=length(identifierNames), ncol=length(identifierNames))
     
     
-    return(list(priori.decomp=priori.decomp, myBoF=myBoF, string_kernel=string_kernel, sim_kernel=sim_kernel))
+    # return(list(priori.decomp=priori.decomp, myBoF=myBoF, string_kernel=string_kernel, sim_kernel=sim_kernel))
+    return(list(myBoF=myBoF, string_kernel=string_kernel, sim_kernel=sim_kernel))
   }
   
   library(igraph)
@@ -719,29 +721,34 @@ run_in_batch_mode_each_project <- function(prname, size=0.25){
   
   setwd("~/workspace")
   # Read the authoritative decomposition
-  decomposition <- read.csv(paste("benchmark", prname ,"decomposition.csv", sep="/"), sep=",",  header = TRUE)
-  priori.decomp <- decomposition$x
-  names(priori.decomp) <- decomposition$X
-  priori.decomp <- normalizeVector(priori.decomp)
+  # decomposition <- read.csv(paste("benchmark", prname ,"decomposition.csv", sep="/"), sep=",",  header = TRUE)
+  # priori.decomp <- decomposition$x
+  # names(priori.decomp) <- decomposition$X
+  # priori.decomp <- normalizeVector(priori.decomp)
   
   #Bag of Features
   myBoF <- load_BoF(prname, c(T,F)) 
   myBoF <- merge_names_by_lower_case(myBoF, 2)
   
   #Get the sample src code units
-  src.code.units <- intersect(rownames(myBoF), names(priori.decomp))
-  myBoF <- myBoF[src.code.units,]
-  priori.decomp <- priori.decomp[src.code.units]
+  # src.code.units <- intersect(rownames(myBoF), names(priori.decomp))
+  # myBoF <- myBoF[src.code.units,]
+  # priori.decomp <- priori.decomp[src.code.units]
   
 #   if (size < 1) #NOW LOOKING FOR ALL DOCS IN PACKAGES WITH 5 OR MORE ELEMENTS
-  myBoF <- myBoF[get_sample_docs(prname, priori.decomp, size),]
+  print("The dimension of myBoF before eliminating small packages")
+  print(dim(myBoF))
+  # myBoF <- myBoF[eliminate_small_packages(rownames(myBoF)),]
+  myBoF <- myBoF[load_module_names(prname),]
+  print("The dimension of myBoF after eliminating small packages")
+  print(dim(myBoF))
   
   #Remove unused identifiernames 
   myBoF <- myBoF[,which(!apply(myBoF,2,FUN = function(x){all(x == 0)}))]
   
-  #Filter out names shorter than 7
+  #Filter out names shorter than 6
   identifierNames <- colnames(myBoF)
-  identifierNames <- identifierNames[which(unlist(lapply(identifierNames, nchar))>=7)]
+  identifierNames <- identifierNames[which(unlist(lapply(identifierNames, nchar))>=5)]
   myBoF <- myBoF[,identifierNames]
 
   #Remove empty classes/interfaces
@@ -753,19 +760,19 @@ run_in_batch_mode_each_project <- function(prname, size=0.25){
   
   eval.funs <- c(compute_inverted_path_length, compute_Wu_Palmer_similarity, compute_Leacock_Chodorow_similarity, 
                  compute_conceptual_density)
+  eval.funs.names <- c("IPL", "WP", "LC", "CD")
   
   # Compile the functions used in the foreach loop
   
   compiled_eval.funs <- lapply(eval.funs, function(f) cmpfun(f))
   compiled_lex.fun <- cmpfun(normalized_LCU_kernel)
   compiled_run_each_setting <- cmpfun(run_each_setting)
-  compiled_compute_semantic_similarity_clustering <- cmpfun(compute_semantic_similarity_clustering)
+  # compiled_compute_semantic_similarity_clustering <- cmpfun(compute_semantic_similarity_clustering)
+  compiled_compute_hierarchical_clustering <- cmpfun(compute_hierarchical_clustering)
 
 #TRIED AGAINST NORMALIZED IC-BASED MEASUREMENTS: NO DIFFERENCE compute_normalized_Lin_similarity & compute_normalized_Resnik_similarity
   weights <- c(1,0) #NOW ONLY CONSIDERING AS ISA (instance-of) relationship, forming a SYNSET
   
-    # for (j in 1:length(compiled_eval.funs)){
-
   #Create results directory, if it doesn't exist
   dir.create(file.path(getwd(), paste("benchmark", prname, "Results/EnrichedBoF", sep="/")), showWarnings = FALSE)
   
@@ -773,156 +780,195 @@ run_in_batch_mode_each_project <- function(prname, size=0.25){
   no_cores <- 3
   cl<-makeCluster(no_cores)
   registerDoParallel(cl)
-  
-  # foreach(j = 1:length(compiled_eval.funs)) %dopar% {
-  #     sim <- compiled_run_each_setting(weights, compiled_eval.funs[[j]], T, compiled_lex.fun, Adj, myBoF)
-  #     
-  #     #Unpack result
-  #     priori.decomp <- sim$priori.decomp
-  #     myBoF <- sim$myBoF
-  #     string_kernel <- sim$string_kernel
-  #     sim_kernel <- sim$sim_kernel
-  #     
-  #     #Just check to for two of the eval.funs to ensure they are working on equivalent filtered SN
-  #     if (j %in% c(1,4)) {
-  #       semantic <- diag(dim(sim_kernel)[2])
-  #       r <- compiled_compute_semantic_similarity_clustering(semantic, myBoF, priori.decomp)
-  #       print_clustering_results(prname, r, txt.file = paste("Results/EnrichedBoF/TYPE_BoF_", j, ".txt", sep=""))
-  #     }
-  #     
-  #     semantic <- sim_kernel
-  #     r <- compiled_compute_semantic_similarity_clustering(semantic, myBoF, priori.decomp)
-  #     print_clustering_results(prname, r, txt.file = paste("Results/EnrichedBoF/TYPE_ISA_", j, ".txt", sep=""))
-  #     
-  #     semantic <- string_kernel * sim_kernel
-  #     r <- compiled_compute_semantic_similarity_clustering(semantic, myBoF, priori.decomp)
-  #     print_clustering_results(prname, r, txt.file = paste("Results/EnrichedBoF/TYPE_ISA_STRING_", j, ".txt", sep=""))
-  #     
-  # }
-  # stopCluster(cl)
+
+  foreach(j = 1:length(compiled_eval.funs)) %dopar% {
+      sim <- compiled_run_each_setting(weights, compiled_eval.funs[[j]], T, compiled_lex.fun, Adj, myBoF)
+
+      #Unpack result
+      # priori.decomp <- sim$priori.decomp
+      myBoF <- sim$myBoF
+      string_kernel <- sim$string_kernel
+      sim_kernel <- sim$sim_kernel
+
+      #Just check to for two of the eval.funs to ensure they are working on equivalent filtered SN
+      if (j %in% c(1)) {
+        semantic <- diag(dim(sim_kernel)[2])
+        # r <- compiled_compute_semantic_similarity_clustering(semantic, myBoF, priori.decomp)
+        r <- compiled_compute_hierarchical_clustering(semantic, myBoF)
+        print_clustering_results(prname, r, txt.file = paste("Results/EnrichedBoF/TYPE_BoF_", j, ".txt", sep=""))
+      }
+
+      semantic <- sim_kernel
+      # r <- compiled_compute_semantic_similarity_clustering(semantic, myBoF, priori.decomp)
+      r <- compiled_compute_hierarchical_clustering(semantic, myBoF)
+      print_clustering_results(prname, r, txt.file = paste("Results/EnrichedBoF/TYPE_", eval.funs.names[j], ".txt", sep=""))
+
+      semantic <- string_kernel * sim_kernel
+      # r <- compiled_compute_semantic_similarity_clustering(semantic, myBoF, priori.decomp)
+      r <- compiled_compute_hierarchical_clustering(semantic, myBoF)
+      print_clustering_results(prname, r, txt.file = paste("Results/EnrichedBoF/TYPE_STRING_", eval.funs.names[j], ".txt", sep=""))
+
+  }
+  stopCluster(cl)
   
 
   lex.funs <- c(normalized_LCS_kernel, normalized_LCU_kernel, constant.string.kernel)
   compiled_lex.funs <- lapply(lex.funs, function(f) cmpfun(f))
-  
+  lex.funs.names <- c("LCS", "LCU", "CONSTANT")
+
+  no_cores <- 3
+  cl<-makeCluster(no_cores)
+  registerDoParallel(cl)
+
   foreach(j = 1:length(compiled_lex.funs)) %dopar% {
-    sim <- compiled_run_each_setting(weights, NULL, T, compiled_lex.fun, Adj, myBoF)
-    
+    sim <- compiled_run_each_setting(weights, NULL, T, compiled_lex.funs[[j]], Adj, myBoF)
+
     #Unpack result
-    priori.decomp <- sim$priori.decomp
     myBoF <- sim$myBoF
     string_kernel <- sim$string_kernel
-    
+
     semantic <- string_kernel
-    r <- compiled_compute_semantic_similarity_clustering(semantic, myBoF, priori.decomp)
-    print_clustering_results(prname, r, txt.file = paste("Results/EnrichedBoF/STRING_", j, ".txt", sep=""))
-    
+    r <- compiled_compute_hierarchical_clustering(semantic, myBoF)
+    print_clustering_results(prname, r, txt.file = paste("Results/EnrichedBoF/STRING_", lex.funs.names[j], ".txt", sep=""))
+
   }
   stopCluster(cl)
 
 }
 
-compute_semantic_similarity_clustering <- function(semantic, myBoF, priori.decomp){
-  require(skmeans)
-  #SVD to compute to USU^T
-  USUt <- svd(semantic)
-  S <- USUt$u %*% diag(sqrt(USUt$d))
-  
+# compute_semantic_similarity_clustering <- function(semantic, myBoF, priori.decomp){
+#   require(skmeans)
+#   #SVD to compute to USU^T
+#   USUt <- svd(semantic)
+#   S <- USUt$u %*% diag(sqrt(USUt$d))
+#   
+#   #Compute cosine similarity
+#   Phi_d <- apply_tf_idf(myBoF) %*% S
+#   
+#   dimnames(Phi_d) <- dimnames(myBoF)
+#   Phi_d <- Phi_d[order(rownames(Phi_d)),]
+#   
+#   print("Dimensions of Phi_d before Cleansing")
+#   print(dim(Phi_d))
+#   
+#   #Remove empty rows
+#   Phi_d <- Phi_d[ apply(Phi_d!=0, 1, any), , drop=FALSE] 
+#   # #Remove duplicated rows
+#   # Phi_d <- Phi_d[!duplicated(Phi_d),]
+#   
+#   
+#   print("Dimensions of Phi_d after Cleansing")
+#   print(dim(Phi_d))
+#   
+#   #ADD LATER IF SPHERICAL k-means doesn't work
+# #   kernel <- compute_cosine_kernel(Phi_d)
+# #   kernel <- kernel[order(rownames(kernel)), order(colnames(kernel))]
+#   
+# #   if (max(kernel) > 1)
+# #     stop("wrong similarity matrix!")
+# #   
+# #   #compute distance from kernel
+# #   dist <- 1 - kernel
+# #   dimnames(dist) <- dimnames(kernel)
+#   
+#   #Fix priori decomposition 
+#   dummy_v <- rep(0, dim(Phi_d)[1])
+#   names(dummy_v) <- rownames(Phi_d)
+#   
+#   priori.decomp <- find.intersection(priori.decomp, dummy_v)
+#   priori.decomp <- normalizeVector(priori.decomp)
+#   priori.decomp <- priori.decomp[order(names(priori.decomp))]
+#   
+#   if(!all(rownames(Phi_d) == names(priori.decomp)))
+#     stop("names don't match!")
+#   
+#   #K number of clusters
+#   noc <- max(priori.decomp)
+#   
+#   print("printing the numer of groups:")
+#   print(max(priori.decomp))
+#   
+#   
+#   #find the intersection with the available classes
+# #Spectral clustering
+# #   L <- laplacian(kernel, TRUE)
+# # clusters <- spectral.clustering(L, noc)
+# # names(clusters) <- rownames(L)
+# 
+# # Spherical K-mean
+#   clusters <- skmeans(Phi_d, noc, control = list(maxiter = 250, popsize=40, nruns=3))$cluster
+# 
+#   clusters <- normalizeVector(clusters)
+# 
+#   if(!all(names(clusters) == names(priori.decomp)))
+#     stop("names don't match!")
+#   
+#   # precision <- compute.precision(clusters, priori.decomp)
+#   # recall <- compute.recall(clusters, priori.decomp)
+#   f1.score <- compute.f1(clusters, priori.decomp)  
+#   adjustedRI <- compute.AdjRI(clusters, priori.decomp)
+#   mojosim <- compute.MoJoSim(clusters, priori.decomp)
+# 
+#   #   write(result, file = paste("benchmark", prname ,"DIFF.txt", sep="/"))
+#   
+#   return(list(mojosim = mojosim, f1.score=f1.score, adjustedRI=adjustedRI))
+#   
+# }
+
+apply_tf_idf <- function(x){
   #diagonal matrix for term weighings
   #TODO CHECK if this is correct
-  doc.freq <- colSums(myBoF>0)
+  doc.freq <- colSums(x>0)
   doc.freq[doc.freq == 0] <- 1
   
-#   term.freq <- rowSums(myBoF)
-#   term.freq[term.freq == 0] <- 1
+  #   term.freq <- rowSums(myBoF)
+  #   term.freq[term.freq == 0] <- 1
   
-#   w <- 1/log(nrow(myBoF)/doc.freq)
-  w <- log(doc.freq/nrow(myBoF))
+  #   w <- 1/log(nrow(myBoF)/doc.freq)
+  w <- log(nrow(x)/doc.freq)
   R <- diag(w)
   
-  #Compute cosine similarity
-  Phi_d <- myBoF %*% R %*% S
-  
-  dimnames(Phi_d) <- dimnames(myBoF)
-  Phi_d <- Phi_d[order(rownames(Phi_d)),]
-  
-  print("Dimensions of Phi_d before Cleansing")
-  print(dim(Phi_d))
-  
-  #Remove empty rows
-  Phi_d <- Phi_d[ apply(Phi_d!=0, 1, any), , drop=FALSE] 
-  # #Remove duplicated rows
-  # Phi_d <- Phi_d[!duplicated(Phi_d),]
-  
-  
-  print("Dimensions of Phi_d after Cleansing")
-  print(dim(Phi_d))
-  
-  #ADD LATER IF SPHERICAL k-means doesn't work
-#   kernel <- compute_cosine_kernel(Phi_d)
-#   kernel <- kernel[order(rownames(kernel)), order(colnames(kernel))]
-  
-#   if (max(kernel) > 1)
-#     stop("wrong similarity matrix!")
-#   
-#   #compute distance from kernel
-#   dist <- 1 - kernel
-#   dimnames(dist) <- dimnames(kernel)
-  
-  #Fix priori decomposition 
-  dummy_v <- rep(0, dim(Phi_d)[1])
-  names(dummy_v) <- rownames(Phi_d)
-  
-  priori.decomp <- find.intersection(priori.decomp, dummy_v)
-  priori.decomp <- normalizeVector(priori.decomp)
-  priori.decomp <- priori.decomp[order(names(priori.decomp))]
-  
-  if(!all(rownames(Phi_d) == names(priori.decomp)))
-    stop("names don't match!")
-  
-  #K number of clusters
-  noc <- max(priori.decomp)
-  
-  print("printing the numer of groups:")
-  print(max(priori.decomp))
-  
-  
-  #find the intersection with the available classes
-#Spectral clustering
-#   L <- laplacian(kernel, TRUE)
-# clusters <- spectral.clustering(L, noc)
-# names(clusters) <- rownames(L)
-
-# Spherical K-mean
-  clusters <- skmeans(Phi_d, noc, control = list(maxiter = 250, popsize=40, nruns=3))$cluster
-
-  clusters <- normalizeVector(clusters)
-
-  if(!all(names(clusters) == names(priori.decomp)))
-    stop("names don't match!")
-  
-  # precision <- compute.precision(clusters, priori.decomp)
-  # recall <- compute.recall(clusters, priori.decomp)
-  f1.score <- compute.f1(clusters, priori.decomp)  
-  adjustedRI <- compute.AdjRI(clusters, priori.decomp)
-  mojosim <- compute.MoJoSim(clusters, priori.decomp)
-
-  #   write(result, file = paste("benchmark", prname ,"DIFF.txt", sep="/"))
-  
-  return(list(mojosim = mojosim, f1.score=f1.score, adjustedRI=adjustedRI))
-  
+  x %*% R
 }
 
-print_clustering_results <- function(prname, r, txt.file){
+
+print_clustering_results <- function(prname, r, txt.file, rnd=3){
   setwd("~/workspace")
   
-  #Prepare the result for printing to file b rounding to 3 decimal places
-  print.mojosim <- round(r$mojosim, 3)
-  print.f1.score <- round(r$f1.score, 3)
-  print.adjustedRI <-round(r$adjustedRI, 3)
-  result <- paste(print.mojosim, print.f1.score , print.adjustedRI, sep="&")
+  result <- ""
+  
+  for(i in 1:length(r)){
+    #Prepare the score for printing to file b rounding to 3 decimal places
+    score <- round(r[[i]],rnd)
+  
+    if (nchar(result) > 0){  
+      result <- paste(result, score, sep="&" )
+    } else {
+
+      result <- paste(result, score, sep="" )
+    }
+  }
   
   write(result, file = paste("benchmark", prname, txt.file, sep="/"))
+}
+
+run_diffusion_clustering <- function(projects){
+  library(foreach)
+  library(doParallel)
+  library(GeLaToLab)
+  
+  setwd("~/workspace")
+  
+  # no_cores <- detectCores() - 1
+  no_cores <- 3
+  cl<-makeCluster(no_cores)
+  registerDoParallel(cl)
+  
+  foreach(i = 1:length(projects)) %dopar% {
+    GeLaToLab::run_each_project_with_diffusion_kernel(projects[[i]])
+  }
+  
+  stopCluster(cl)
 }
 
 run_each_project_with_diffusion_kernel <- function(prname){
@@ -932,30 +978,35 @@ compute_string_semantic_diffusion_kernels <- function(prname, beta=0.5){
   require(GeLaToLab)
   setwd("~/workspace")
   # Read the authoritative decomposition
-  decomposition <- read.csv(paste("benchmark", prname ,"decomposition.csv", sep="/"), sep=",",  header = TRUE)
-  priori.decomp <- decomposition$x
-  names(priori.decomp) <- decomposition$X
-  priori.decomp <- normalizeVector(priori.decomp) 
+  # decomposition <- read.csv(paste("benchmark", prname ,"decomposition.csv", sep="/"), sep=",",  header = TRUE)
+  # priori.decomp <- decomposition$x
+  # names(priori.decomp) <- decomposition$X
+  # priori.decomp <- normalizeVector(priori.decomp) 
   
   #Bag of Features
   myBoF <- load_BoF(prname, c(T,F))  
   myBoF <- merge_names_by_lower_case(myBoF, 2)
   
   #Get the sample src code units
-  src.code.units <- intersect(rownames(myBoF), names(priori.decomp))
+  # src.code.units <- intersect(rownames(myBoF), names(priori.decomp))
   
-  myBoF <- myBoF[src.code.units,]
-  priori.decomp <- priori.decomp[src.code.units]
+  # myBoF <- myBoF[src.code.units,]
+  # priori.decomp <- priori.decomp[src.code.units]
   
   #   if (size < 1) #NOW LOOKING FOR ALL DOCS IN PACKAGES WITH 5 OR MORE ELEMENTS
-  myBoF <- myBoF[get_sample_docs(prname, priori.decomp, size=0.5),]
+  print("The dimension of myBoF before eliminating small packages")
+  print(dim(myBoF))
+  # myBoF <- myBoF[eliminate_small_packages(rownames(myBoF)),]
+  myBoF <- myBoF[load_module_names(prname),]
+  print("The dimension of myBoF after eliminating small packages")
+  print(dim(myBoF))
   
   #Remove unused identifiernames
   myBoF <- myBoF[,which(!apply(myBoF,2,FUN = function(x){all(x == 0)}))]
   
   #Filter out names shorter than 5
   identifierNames <- colnames(myBoF)
-  identifierNames <- identifierNames[which(unlist(lapply(identifierNames, nchar))>=4)]
+  identifierNames <- identifierNames[which(unlist(lapply(identifierNames, nchar))>=5)]
   
   myBoF <- myBoF[, identifierNames]
   
@@ -976,6 +1027,12 @@ compute_string_semantic_diffusion_kernels <- function(prname, beta=0.5){
   
   #size of dictionary
   D <- startIndex -1
+  
+  #This is the best semantic similarity measure between type names -- WRITE IT DOWN
+  type_sim_kernel <- K[(D+1):dim(K)[1], (D+1):dim(K)[1]]
+  x <- write.table(type_sim_kernel, file=paste("benchmark", prname , "SN", paste(prname, "type-sim.csv", sep="-"), sep="/"),row.names=TRUE, 
+              col.names=NA,sep=",", quote=FALSE)
+  
   sim_kernel <- K[1:D, 1:D]
   
   #Lower case the identifer Names
@@ -1009,32 +1066,41 @@ compute_string_semantic_diffusion_kernels <- function(prname, beta=0.5){
   stopifnot(all(tolower(rownames(string_kernel)) == tolower(colnames(myBoF))))
   stopifnot(all(tolower(rownames(sim_kernel)) == tolower(rownames(string_kernel))))
 
-  return(list(priori.decomp=priori.decomp, myBoF=myBoF, string_kernel=string_kernel, sim_kernel=sim_kernel))
+  # return(list(priori.decomp=priori.decomp, myBoF=myBoF, string_kernel=string_kernel, sim_kernel=sim_kernel))
+  return(list(myBoF=myBoF, string_kernel=string_kernel, sim_kernel=sim_kernel))
 }
 
-#Create results directory, if it doesn't exist
-dir.create(file.path(getwd(), paste("benchmark", prname, "Results/EnrichedBoF", sep="/")), showWarnings = FALSE)
+  #Create results directory, if it doesn't exist
+  dir.create(file.path(getwd(), paste("benchmark", prname, "Results/EnrichedBoF", sep="/")), showWarnings = FALSE)
 
   sim <- compute_string_semantic_diffusion_kernels(prname)
+  
   #Unpack result
-  priori.decomp <- sim$priori.decomp
   myBoF <- sim$myBoF
   string_kernel <- sim$string_kernel
   sim_kernel <- sim$sim_kernel
 
-  semantic <- diag(dim(sim_kernel)[2])
-  r <- compute_semantic_similarity_clustering(semantic, myBoF, priori.decomp)
-  print_clustering_results(prname, r, txt.file = "Results/EnrichedBoF/DIFF_BoF_WITH_BETA_0_5.txt")
+  # semantic <- diag(dim(sim_kernel)[2])
+  # r <- compute_hierarchical_clustering(semantic, myBoF)
+  # print_clustering_results(prname, r, txt.file = "Results/EnrichedBoF/NEW_DIFF_BoF_KERNEL.txt")
 
-  semantic <- sim_kernel
-  r <- compute_semantic_similarity_clustering(semantic, myBoF, priori.decomp)
-  print_clustering_results(prname, r, txt.file = "Results/EnrichedBoF/DIFF_WITH_SN_WITH_BETA_0_5.txt")
+  # semantic <- sim_kernel
+  # r <- compute_hierarchical_clustering(semantic, myBoF)
+  # print_clustering_results(prname, r, txt.file = "Results/EnrichedBoF/DIFF_SN.txt")
 
   semantic <- string_kernel * sim_kernel
-  r <- compute_semantic_similarity_clustering(semantic, myBoF, priori.decomp)
-  print_clustering_results(prname, r, txt.file = "Results/EnrichedBoF/DIFF_STRING_WITH_SN_WITH_BETA_0_5.txt")
   
+  r <- compute_hierarchical_clustering(semantic, myBoF)
+  print_clustering_results(prname, r, txt.file = "Results/EnrichedBoF/DIFF_STRING.txt")
 }
-
-#     projects <- list("apache-ant-1.9.3", "hadoop-0.20.2", "apache-log4j-1.2.17",
-# "jdom-2.0.5", "jedit-5.1.0", "jfreechart-1.2.0", "jhotdraw-7.0.6", "junit-4.12" ,"weka-3.6.11", "eclipse-jdt-core-3.8")
+# 
+    projects <- list("apache-ant-1.9.3", "hadoop-0.20.2", "apache-log4j-1.2.17",
+"jdom-2.0.5", "jedit-5.1.0", "jfreechart-1.2.0", "jhotdraw-7.0.6", "junit-4.12" ,"weka-3.6.11", "eclipse-jdt-core-3.8")
+# "jdom-2.0.5" string kernels DONE
+# "junit-4.12" string kernels DONE
+# "hadoop-0.20.2" string kernels DONE
+# "apache-log4j-1.2.17" string kernels DONE
+# "jhotdraw-7.0.6" string kernels DONE
+# "jfreechart-1.2.0"
+# "apache-ant-1.9.3"
+# "jedit-5.1.0"

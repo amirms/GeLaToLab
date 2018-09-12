@@ -1,5 +1,9 @@
-# projects <- list("apache-ant-1.9.3", "hadoop-0.20.2", "apache-log4j-1.2.17", "jdom-2.0.5", "jedit-5.1.0",
-#                  "jfreechart-1.2.0", "jhotdraw-7.0.6", "junit-4.12" ,"weka-3.6.11", "eclipse-jdt-core-3.8")
+# projects <- list("apache-ant-1.9.3", "hadoop-0.20.2", "apache-log4j-1.2.17", "jedit-5.1.0",
+#                  "jfreechart-1.2.0", "jhotdraw-7.0.6", "junit-4.12")
+#
+#  ,"weka-3.6.11", "eclipse-jdt-core-3.8"
+# "jdom-2.0.5" Type done, 
+# 
 
 run_context_type_clustering <- function(projects){
   library(foreach)
@@ -8,8 +12,8 @@ run_context_type_clustering <- function(projects){
   
   setwd("~/workspace")
   
-  no_cores <- detectCores() - 1
-  # no_cores <- 3
+  # no_cores <- detectCores() - 1
+  no_cores <- 3
   cl<-makeCluster(no_cores)
   registerDoParallel(cl)
   
@@ -28,8 +32,8 @@ run_context_type_identifier_clustering <- function(projects){
   
   setwd("~/workspace")
   
-  no_cores <- detectCores()
-  # no_cores <- 3
+  # no_cores <- detectCores()
+  no_cores <- 3
   cl<-makeCluster(no_cores)
   registerDoParallel(cl)
   
@@ -48,10 +52,10 @@ compute_type_similarity_clustering <- function(prname, eval.fun = compute_concep
   setwd("~/workspace")
   
   # Read the authoritative decomposition
-  decomposition <- read.csv(paste("benchmark", prname ,"decomposition.csv", sep="/"), sep=",",  header = TRUE)
-  priori.decomp <- decomposition$x
-  names(priori.decomp) <- decomposition$X
-  priori.decomp <- normalizeVector(priori.decomp)
+  # decomposition <- read.csv(paste("benchmark", prname ,"decomposition.csv", sep="/"), sep=",",  header = TRUE)
+  # priori.decomp <- decomposition$x
+  # names(priori.decomp) <- decomposition$X
+  # priori.decomp <- normalizeVector(priori.decomp)
   
   #Bag of Features
   myBoF <- load_BoF(prname, c(F,T)) 
@@ -62,26 +66,34 @@ compute_type_similarity_clustering <- function(prname, eval.fun = compute_concep
   myBoF <- myBoF[,-unknownIdx]
   
   #Get the sample src code units
-  src.code.units <- intersect(rownames(myBoF), names(priori.decomp))
-  myBoF <- myBoF[src.code.units,]
-  priori.decomp <- priori.decomp[src.code.units]
+  # src.code.units <- intersect(rownames(myBoF), names(priori.decomp))
+  # myBoF <- myBoF[src.code.units,]
+  # priori.decomp <- priori.decomp[src.code.units]
   
   #   if (size < 1) #NOW LOOKING FOR ALL DOCS IN PACKAGES WITH 5 OR MORE ELEMENTS
-  myBoF <- myBoF[get_sample_docs(prname, priori.decomp, size),]
+  print("The dimension of myBoF before eliminating small packages")
+  print(dim(myBoF))
+  # myBoF <- myBoF[eliminate_small_packages(rownames(myBoF)),]
+  myBoF <- myBoF[load_module_names(prname),]
+  print("The dimension of myBoF after eliminating small packages")
+  print(dim(myBoF))
   
-  #LOAD Semantic Network
-  Adj <- load_SN(prname, make_symmetric = F, makeTopNode=T, identifiers=c())
-  names <- colnames(Adj)
-  startIndex <- get.start.index.of.types(names)
-
-  S <- Adj[startIndex:dim(Adj)[1], startIndex:dim(Adj)[2]]
-  C <- Adj[startIndex:dim(Adj)[1], 1:(startIndex-1)] 
+  # LOAD Semantic Network
+  # Adj <- load_SN(prname, make_symmetric = F, makeTopNode=T, identifiers=c())
+  # names <- colnames(Adj)
+  # startIndex <- get.start.index.of.types(names)
+  # 
+  # S <- Adj[startIndex:dim(Adj)[1], startIndex:dim(Adj)[2]]
+  # C <- Adj[startIndex:dim(Adj)[1], 1:(startIndex-1)] 
   # dimnames(C) <- dimnames(Adj[startIndex:dim(Adj)[1], 1:(startIndex-1)])
   
   #DONE make this a higher function argument
-  type_sim <- eval.fun(S, C)
-  dimnames(type_sim) <- dimnames(S)
+  # type_sim <- eval.fun(S, C)
+  # dimnames(type_sim) <- dimnames(S)
 
+  #LOAD diffusion-based type similarity
+  type_sim <- load_diff_type_sim(prname)
+  
   #Remove unused type names 
   myBoF <- myBoF[,which(!apply(myBoF,2,FUN = function(x){all(x == 0)}))]
  
@@ -102,12 +114,12 @@ compute_type_similarity_clustering <- function(prname, eval.fun = compute_concep
   
   #compute_semantic_similarity_clustering
   semantic <- diag(dim(myBoF)[2])
-  r <- compute_semantic_similarity_clustering(semantic, myBoF, priori.decomp)
-  print_clustering_results(prname, r, txt.file = "Results/ContextModel/Latest_Type_BoF_Sim.txt")
+  r <- compute_hierarchical_clustering(semantic, myBoF)
+  print_clustering_results(prname, r, txt.file = "Results/ContextModel/Plain_Type_BoF_Sim.txt")
   
   semantic <- type_sim
-  r <- compute_semantic_similarity_clustering(semantic, myBoF, priori.decomp)
-  print_clustering_results(prname, r, txt.file = "Results/ContextModel/Latest_Enriched_Type_BoF_Sim.txt")
+  r <- compute_hierarchical_clustering(semantic, myBoF)
+  print_clustering_results(prname, r, txt.file = "Results/ContextModel/Enriched_Type_BoF_Sim.txt")
   
   return(r)
 }
@@ -119,10 +131,10 @@ compute_identifier_type_similarity_clustering <- function(prname, eval.fun=compu
   setwd("~/workspace")
   
   # Read the authoritative decomposition
-  decomposition <- read.csv(paste("benchmark", prname ,"decomposition.csv", sep="/"), sep=",",  header = TRUE)
-  priori.decomp <- decomposition$x
-  names(priori.decomp) <- decomposition$X
-  priori.decomp <- normalizeVector(priori.decomp)
+  # decomposition <- read.csv(paste("benchmark", prname ,"decomposition.csv", sep="/"), sep=",",  header = TRUE)
+  # priori.decomp <- decomposition$x
+  # names(priori.decomp) <- decomposition$X
+  # priori.decomp <- normalizeVector(priori.decomp)
   
   #Bag of Features
   myBoF_data <- load_BoF(prname, c(T,T)) 
@@ -131,27 +143,38 @@ compute_identifier_type_similarity_clustering <- function(prname, eval.fun=compu
   
   identifiers <- myBoF_data$identifiers
 
-    #Get the sample src code units
-  src.code.units <- intersect(rownames(myBoF), names(priori.decomp))
-  myBoF <- myBoF[src.code.units,]
-  priori.decomp <- priori.decomp[src.code.units]
+  #Get the sample src code units
+  # src.code.units <- intersect(rownames(myBoF), names(priori.decomp))
+  # myBoF <- myBoF[src.code.units,]
+  # priori.decomp <- priori.decomp[src.code.units]
   
   #   if (size < 1) #NOW LOOKING FOR ALL DOCS IN PACKAGES WITH 5 OR MORE ELEMENTS
-  myBoF <- myBoF[get_sample_docs(prname, priori.decomp, size),]
+  print("The dimension of myBoF before eliminating small packages")
+  print(dim(myBoF))
+  # myBoF <- myBoF[eliminate_small_packages(rownames(myBoF)),]
+  myBoF <- myBoF[load_module_names(prname),]
+  print("The dimension of myBoF after eliminating small packages")
+  print(dim(myBoF))
   
   
   #LOAD Semantic Network
-  Adj <- load_SN(prname, make_symmetric = F, makeTopNode=T, identifiers=c())
-  names <- colnames(Adj)
-  startIndex <- get.start.index.of.types(names)
+  # Adj <- load_SN(prname, make_symmetric = F, makeTopNode=T, identifiers=c())
+  # names <- colnames(Adj)
+  # startIndex <- get.start.index.of.types(names)
+  # 
+  # S <- Adj[startIndex:dim(Adj)[1], startIndex:dim(Adj)[2]]
+  # C <- Adj[startIndex:dim(Adj)[1], 1:(startIndex-1)] 
+  # 
+  # #DONE make this a higher function argument
+  # type_sim <- eval.fun(S, C)
+  # colnames(type_sim) <- tolower(colnames(S))
+  # rownames(type_sim) <- tolower(rownames(S))
+  # diag(type_sim) <- 1
   
-  S <- Adj[startIndex:dim(Adj)[1], startIndex:dim(Adj)[2]]
-  C <- Adj[startIndex:dim(Adj)[1], 1:(startIndex-1)] 
-
-  #DONE make this a higher function argument
-  type_sim <- eval.fun(S, C)
-  colnames(type_sim) <- tolower(colnames(S))
-  rownames(type_sim) <- tolower(rownames(S))
+  #LOAD diffusion-based type similarity
+  type_sim <- load_diff_type_sim(prname)
+  colnames(type_sim) <- tolower(colnames(type_sim))
+  rownames(type_sim) <- tolower(rownames(type_sim))
   diag(type_sim) <- 1
   
   stopifnot(isSymmetric((type_sim)))
@@ -165,8 +188,8 @@ compute_identifier_type_similarity_clustering <- function(prname, eval.fun=compu
   
   #Remove unused identifier_type names 
   myBoF <- myBoF[,which(!apply(myBoF,2,FUN = function(x){all(x == 0)}))]
-  #Remove empty classes/interfaces
-  myBoF <- myBoF[which(!apply(myBoF,1,FUN = function(x){all(x == 0)})),]
+  # #Remove empty classes/interfaces
+  # myBoF <- myBoF[which(!apply(myBoF,1,FUN = function(x){all(x == 0)})),]
   
   # Fix identifier type similarity
   used_identifier_types <- tolower(colnames(myBoF))
@@ -215,11 +238,11 @@ compute_identifier_type_similarity_clustering <- function(prname, eval.fun=compu
   
   #compute_semantic_similarity_clustering
   semantic <- diag(dim(myBoF)[2])
-  r <- compute_semantic_similarity_clustering(semantic, myBoF, priori.decomp)
-  print_clustering_results(prname, r, txt.file = "Results/ContextModel/Identifier_Type_BoF_Sim.txt")
+  r <- compute_hierarchical_clustering(semantic, myBoF)
+  print_clustering_results(prname, r, txt.file = "Results/ContextModel/Plain_Identifier_Type_BoF_Sim.txt")
   
   semantic <- identifier_type_sim
-  r <- compute_semantic_similarity_clustering(semantic, myBoF, priori.decomp)
+  r <- compute_hierarchical_clustering(semantic, myBoF)
   print_clustering_results(prname, r, txt.file = "Results/ContextModel/Enriched_Identifier_Type_BoF_Sim.txt")
   
   return(r)

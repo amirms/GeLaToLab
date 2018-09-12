@@ -1,35 +1,35 @@
 ## Inspired by https://github.com/timtadh/zhang-shasha/blob/master/zss/compare.py
 
-#TEST DATA REMOVE LATER
-# m <- matrix(0, nrow=3,ncol=3)
-# rownames(m) <- c('a', 'b', 'c')
-# colnames(m) <- rownames(m)
-# m['a', 'b'] <- 1
-# m['a', 'c'] <- 1
-# 
-# children <- function(node) {
-#   if (any(m[node, ]>0))
-#     return(names(which(m[node,]>0)))
-#  return(vector(mode="numeric", length=0))
-# }
-# 
-# m2 <- matrix(0, nrow=4,ncol=4)
-# rownames(m2) <- c('a', 'b', 'c', 'd')
-# colnames(m2) <- rownames(m2)
-# m2['a', 'b'] <- 1
-# m2['b', 'c'] <- 1
-# m2['a', 'd'] <- 1
-# # m2['a', 'e'] <- 1
-# 
-# children2 <- function(node) {
-#   if (any(m2[node, ]>0))
-#     return(names(which(m2[node,]>0)))
-#   return(vector(mode="numeric", length=0))
-# }
-# 
-# insert_cost <- function(x) {1}
-# remove_cost <- function(x) {1}
-# update_cost <- function(x, y) {1}
+# TEST DATA REMOVE LATER
+m <- matrix(0, nrow=3,ncol=3)
+rownames(m) <- c('a', 'b', 'c')
+colnames(m) <- rownames(m)
+m['a', 'b'] <- 1
+m['a', 'c'] <- 1
+
+children <- function(node) {
+  if (any(m[node, ]>0))
+    return(names(which(m[node,]>0)))
+ return(vector(mode="numeric", length=0))
+}
+
+m2 <- matrix(0, nrow=4,ncol=4)
+rownames(m2) <- c('a', 'b', 'c', 'd')
+colnames(m2) <- rownames(m2)
+m2['a', 'b'] <- 1
+m2['b', 'c'] <- 1
+m2['a', 'd'] <- 1
+# m2['a', 'e'] <- 1
+
+children2 <- function(node) {
+  if (any(m2[node, ]>0))
+    return(names(which(m2[node,]>0)))
+  return(vector(mode="numeric", length=0))
+}
+
+insert_cost <- function(x) {1}
+remove_cost <- function(x) {1}
+update_cost <- function(x, y) {1}
 
 tree_distance = function(A, B, get_children_A, get_children_B, insert_cost, remove_cost, update_cost){
     "Computes the exact tree edit distance between trees A and B with a

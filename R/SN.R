@@ -126,10 +126,6 @@ compute.BoW.kernel <- function(prname, size = 0.25, rootFolder="org", pattern = 
   
   
   return(list(mojosim=mojosim, precision=precision, recall=recall, f1.score=f1.score))
-  
-  
-  
-  
 }
 
 compute.BoF.kernel <- function(prname, size=0.25){
@@ -609,7 +605,6 @@ merge_names_by_lower_case <- function(mydata, dimension=1){
   
 #   stopifnot(dim(adj)[1] == dim(adj)[2])
 #   stopifnot(rownames(adj) == colnames(adj))
-  
   lower_names <- tolower(dimnames(mydata)[[dimension]])
   
   equiv_names = list()
@@ -627,11 +622,12 @@ merge_names_by_lower_case <- function(mydata, dimension=1){
     
         if (dimension==1){
           #add by rowsums
-          added <- colSums(mydata[equivalent_indices[[i]], ])
+          
+          added <- colSums(data.matrix(mydata[equivalent_indices[[i]], ]))
           mydata[equivalent_indices[[i]][1],] <- added
         }
         else{
-          added <- rowSums(mydata[, equivalent_indices[[i]]])
+          added <- rowSums(data.matrix(mydata[, equivalent_indices[[i]]]))
           mydata[,equivalent_indices[[i]][1]] <- added
         }
         
@@ -650,8 +646,18 @@ merge_names_by_lower_case <- function(mydata, dimension=1){
   
 }
 
+load_diff_type_sim <- function(prname) {
+  setwd("~/workspace")
+  type_sim = read.csv(paste("benchmark", prname , "SN", paste(prname, "type-sim.csv", sep="-"), sep="/"), sep = ",", quote = "\"", dec= ".")
+  rownames(type_sim) <- type_sim[,1]
+  type_sim <- type_sim[,-1]
+  as.matrix(type_sim)
+}
+
 #TESTED
 load_SN <- function(prname, make_symmetric=T, makeTopNode=T, eliminate_local_variables=T, rootNode="java.lang.Object", identifiers=c()){
+  library(Matrix)
+  
   setwd("~/workspace")
   mySN = read.csv(paste("benchmark", prname , "SN", paste(prname, "SN.csv", sep="-"), sep="/"), sep = ",", quote = "\"", dec= ".")
   # mySN[which(is.na(mySN[,1])),1] <- NA
@@ -662,9 +668,11 @@ load_SN <- function(prname, make_symmetric=T, makeTopNode=T, eliminate_local_var
   }
   
   rownames(mySN) <- mySN[,1]
-  mySN <- mySN[,-1]
+  mySN <- data.matrix(mySN[,-1])
   gc()
-  mySN <- data.matrix(mySN)
+  memory.limit(size = 4*10^6)
+  # mySN <- data.matrix(mySN)
+  mySN <- Matrix(mySN, sparse=TRUE)
   
   gc()
   colnames(mySN) <- rownames(mySN)
@@ -673,28 +681,6 @@ load_SN <- function(prname, make_symmetric=T, makeTopNode=T, eliminate_local_var
   
   #Siz of dictionary
   D <-startIndex-1
-  
-  #Some memory optimization #1
-#   x <- merge_names_by_lower_case(mySN[1:startIndex-1,], 1)
-#   y <- mySN[startIndex:nrow(mySN),]
-#   mySN <- 0
-#   gc()
-#   
-#   mySN <- rbind(x, y)
-#   x<-0
-#   y <- 0
-#   gc()
-#   
-#   
-#   #Some memory optimization #2
-#   x <- merge_names_by_lower_case(mySN[,1:startIndex-1], 2)
-#   y <- mySN[,startIndex:ncol(mySN)]
-#   mySN <- 0
-#   gc()
-#   mySN <- cbind(x,y)
-#   x<-0
-#   y <- 0
-#   gc()
 
 #Filter on the identifiers; otherwise use all the identifiers
 #It is safe to intersect on uppercase (camel-case for Java)
@@ -814,14 +800,15 @@ load_SN <- function(prname, make_symmetric=T, makeTopNode=T, eliminate_local_var
     Adj[1:D,1:D] <- 0
 
     # Get the type contents
-    C <- Adj[startIndex:dim(Adj)[1], 1:D] 
+    C <- data.matrix(Adj[startIndex:dim(Adj)[1], 1:D])
     dimnames(C) <- dimnames(Adj[startIndex:dim(Adj)[1], 1:D])
     
     exposed_identifiers <- colSums(C)
     excluded_names_indices <- which(exposed_identifiers == 0)
     
-    Adj <- Adj[-excluded_names_indices, -excluded_names_indices]
-    
+    if (length(excluded_names_indices) > 0){
+      Adj <- Adj[-excluded_names_indices, -excluded_names_indices]
+    }
   
     Adj <- remove_empty_nodes(Adj)
     
@@ -834,8 +821,11 @@ load_SN <- function(prname, make_symmetric=T, makeTopNode=T, eliminate_local_var
 
 
   if (make_symmetric){
+    stopifnot(dim(mySN)[1] == dim(mySN)[2])
+    # mySN <- data.matrix(mySN)
     mySN <- 0.5 * (mySN + t(mySN))
-    mySN <- mySN[which(!apply(mySN,1,FUN = function(x){all(x == 0)})),which(!apply(mySN,2,FUN = function(x){all(x == 0)}))]
+    # 
+    # mySN <- mySN[which(!apply(mySN,1,FUN = function(x){all(x == 0)})),which(!apply(mySN,2,FUN = function(x){all(x == 0)}))]
   }
   #   names <- rownames(Adj)
   
@@ -844,8 +834,8 @@ load_SN <- function(prname, make_symmetric=T, makeTopNode=T, eliminate_local_var
   print(dim(mySN))
   
   
-  mySN
-}    
+  Matrix(mySN)
+}
 
 process_All_SN <- function(Adj, beta){
   require(igraph)
@@ -950,19 +940,49 @@ get_top_sample_docs <- function(prname, decomp, size = 30, top = 5){
   
 }
 
-get_sample_docs <- function(prname, decomp, size=0.25){
+eliminate_small_packages <- function(filenames) {
+  
+  paths <- lapply(filenames, function(filename) {
+    g <- grep("/", strsplit(filename, "")[[1]])
+    lastChar <- g[length(g)]
+    substr(filename, 1, lastChar-1)
+  })
+  paths <- unlist(unique(paths))
+  
+  decomp <- lapply(filenames, function(filename) {
+    g <- grep("/", strsplit(filename, "")[[1]])
+    lastChar <- g[length(g)]
+    p <- substr(filename, 1, lastChar-1)
+    
+    which(paths %in% p)
+  
+  })
+  decomp <- unlist(decomp)
+  
+  decomp <- GeLaToLab::normalizeVector(decomp)
+  names(decomp) <- filenames
+  
+  get_sample_docs("", decomp)
+  
+}
+
+load_module_names <- function(prname) {
+  setwd("~/workspace")
+  mydata = read.table(paste("benchmark", prname ,"MODULE_NAMES.txt", sep="/")) 
+  return(as.vector(mydata$V1))
+}
+
+
+get_sample_docs <- function(prname, decomp, size=0.25, lower.limit=3){
   require(igraph)
   require(GeLaToLab)
-  setwd("~/workspace")
-  
-  LOWER_LIMIT = 4
-  
+
   #number of clusters
   noc <- max(decomp)
   
   names <- unlist(lapply(1:noc, function(x) {
     cls = decomp[decomp==x]
-    if (length(cls) >= LOWER_LIMIT)
+    if (length(cls) >= lower.limit)
 #       names(cls[sample(1:length(cls), ceiling(length(cls) * size))])
       names(cls)
     else

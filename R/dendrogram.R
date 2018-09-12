@@ -34,17 +34,19 @@ build.dendrogam <- function(filenames){
 
     lastSegment = NULL
     
-    for (j in 1:length(g)){
-    
-      lastChar <- g[j]
-      directory <- substr(path, 1, lastChar-1)
+    if (length(g) >= 1){
+      for (j in 1:length(g)){
       
-      if (!is.null(lastSegment)) {
-        edges[[length(edges) + 1]] <- c(lastSegment, directory)
+        lastChar <- g[j]
+        directory <- substr(path, 1, lastChar-1)
+        
+        if (!is.null(lastSegment)) {
+          edges[[length(edges) + 1]] <- c(lastSegment, directory)
+        }
+        
+        vertices <- c(vertices, directory)
+        lastSegment <- directory
       }
-      
-      vertices <- c(vertices, directory)
-      lastSegment <- directory
     }
     vertices <- c(vertices, path)
     
@@ -68,6 +70,7 @@ build.dendrogam <- function(filenames){
   }
   
   vertices <- unique(vertices)
+  vertices <- vertices[!is.na(vertices)]
   
   el <- matrix( unlist(edges), nc = 2, byrow = TRUE)
   g <- graph_from_edgelist(el)
@@ -150,8 +153,8 @@ compute_hierarchical_clustering <- function(semantic, myBoF){
   print("Dimensions of Phi_d before Cleansing")
   print(dim(Phi_d))
   
-  #Remove empty rows
-  Phi_d <- Phi_d[ apply(Phi_d!=0, 1, any), , drop=FALSE] 
+  #FIXME Remove empty rows
+  # Phi_d <- Phi_d[ apply(Phi_d!=0, 1, any), , drop=FALSE] 
   # #Remove duplicated rows
   # Phi_d <- Phi_d[!duplicated(Phi_d),]
   
@@ -160,13 +163,12 @@ compute_hierarchical_clustering <- function(semantic, myBoF){
   print(dim(Phi_d))
   
   kernel <- compute_cosine_kernel(Phi_d)
-  # kernel <- kernel[order(rownames(kernel)), order(colnames(kernel))]
   
   if (max(kernel) > 1)
     stop("wrong similarity matrix!")
 
   #compute distance from kernel
-  myDist <- 1 - kernel
+  myDist <- squared.euclidean.distance.of.kernel.matrix(kernel)
   myDist <- as.dist(myDist)
   
   # pinned it to complete linkage
@@ -180,20 +182,23 @@ compute_hierarchical_clustering <- function(semantic, myBoF){
   priori.tree <- priori.decomp$tree
   path.difference <- phangorn::path.dist(clusters.tree, priori.tree, check.labels = T)
   
-  clusters.dend <- as.dendrogram(clusters)
-  priori.dend <- priori.decomp$dend
-  
-  baker <- cor_bakers_gamma.dendrogram(priori.dend, clusters.dend)
+  # clusters.dend <- as.dendrogram(clusters)
+  # priori.dend <- priori.decomp$dend
+  # 
+  # baker <- cor_bakers_gamma.dendrogram(priori.dend, clusters.dend)
   # cophcor <- dendextend::cor_cophenetic(priori.dend, clusters.dend)
   
   # Bks <- Bk2(priori.dend, clusters.dend)
   # Bk <- mean(unlist(lapply(Bks, function(b) b[1])))
   # 
-  mojosim.ks <- MoJo.sim.k(priori.dend, clusters.dend)
-  mojosim.k <- mean(unlist(lapply(mojosim.ks, function(mj) mj[1])))
+  # mojosim.ks <- MoJo.sim.k(priori.dend, clusters.dend)
+  # mojosim.k <- mean(unlist(lapply(mojosim.ks, function(mj) mj[1])))
+  
+  # new.path.difference <- compute_path_difference(clusters, priori.decomp$graph, labels=rownames(Phi_d))
   
   # return(list(baker=baker, cophcor=cophcor, Bk=Bk, diff=path.difference, mojosim = mojosim.k))
-  return(list(baker=baker, cophcor=0, Bk=0, diff=path.difference, mojosim = mojosim.k, treeDistance = treeDistance))
+  # return(list(baker=baker, cophcor=0, Bk=0, diff=path.difference, mojosim = mojosim.k, treeDistance = treeDistance))
+  return(list(baker=0, cophcor=0, Bk=0, diff=path.difference, mojosim = 0, treeDistance = treeDistance))
   
 }
 

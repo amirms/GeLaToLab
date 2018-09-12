@@ -335,6 +335,11 @@ compute.von.neumann.diffusion.kernel <- function(A, alpha) {
 
 compute.exponential.diffusion.kernel <- function(A, alpha) {
   require(Matrix)
+  
+  if (!isSymmetric(A)) {
+    A <- (A + t(A))/2
+  }
+  
   K <- as.matrix(expm(alpha * A))
   
   

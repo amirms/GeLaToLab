@@ -49,8 +49,6 @@ compute_information_content_similarity <- function(prname) {
     #Create results directory, if it doesn't exist
   dir.create(file.path(getwd(), paste("benchmark", prname, "Results/InformationContent", sep="/")), showWarnings = FALSE)
   
-  old_priori.decomp <- priori.decomp
-  
   compute_information_content_semantic_similarity_clustering(priori.decomp, lin_type_sim, "Lin_Type_Sim", prname)
   compute_information_content_semantic_similarity_clustering(priori.decomp, resnik_type_sim, "Resnik_Type_Sim.txt", prname)
 }

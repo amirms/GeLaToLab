@@ -21,8 +21,12 @@ convert_graph_to_adjacency_tree <- function(graph) {
   require(igraph)
   
   adj = as.matrix(as_adjacency_matrix(graph))
-  names <- colnames(adj)
   adj[which(adj > 0)] <- 1
+
+  names <- colnames(adj)  
+  parents_indices <- which(rowSums(adj) > 0)
+  names[parents_indices] <- rep(1:length(parents_indices))
+  dimnames(adj) <- list(names, names)
 
   list(adj= adj, root= names[which(colSums(adj) == 0)])
 }
@@ -52,7 +56,9 @@ compute_tree_edit_distance <- function(tree1, tree2) {
   insert_cost <- function(x) {1}
   remove_cost <- function(x) {1}
   update_cost <- function(x, y) {
-    if (x == y) {
+    
+    #THIS IS CORRECT if ((x == y) && (length(get_children1(x))==0) && (length(get_children2(y))==0) ) {
+    if ((x == y)) {
        return(0)
     }
     

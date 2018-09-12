@@ -79,6 +79,140 @@ compute_intersection_names <- function(names){
 
 
 
+cotraining <- function(Ks, iters, storeEachIteration=FALSE) {
+    Ls <- lapply(Ks, function(K) laplacian(K, TRUE))
+    
+    es <- lapply(Ls, function(L) eigen(L))
+    os <- lapply(es, function(e) order(e$values, decreasing=FALSE)[1:k] )
+    
+    Us <- list()
+    
+    for (i in 1:length(es))
+      Us[[i]] <- es[[i]]$vectors[,os[[i]]]
+    #   Us <- mapply(function(e,o) e$vectors[,o], es, os)
+    # o1 <- 
+    #   U1 <- e1$vectors[,o1]
+    
+    #   e2 <- eigen(L2)
+    #   o2 <- order(e2$values, decreasing=FALSE)[1:k]
+    #   U2 <- e2$vectors[,o2]
+    
+    #   result2 <- c(result2, cluster.mojosim(U2, k, priori.decomp))
+    
+    #   print(dim(Us))
+    #   return(list(U1=U1, U2=U2))
+    
+    project_sum <- function(Us, K) {
+      sum_UUT <- Us[[1]] %*% t(Us[[1]])
+      if (length(Us) > 1)
+        for (i in 2:length(Us))
+          sum_UUT <- sum_UUT + (Us[[i]] %*% t(Us[[i]]))
+        
+        sum_UUT %*% K
+    }
+    
+    Ss = list()
+    
+    make_symmetric <- function(U) {
+      0.5 * (U + t(U))
+    }
+    
+    SS_per_iteration=list()
+    
+    SS_per_iteration[[1]] = Ks
+    
+    for (iter in 1:iters) {
+      print(paste("iteration", iter))
+      
+      for (i in 1:length(Us))
+        Ss[[i]] <- make_symmetric(project_sum(Us[-i], Ks[[i]]))
+      
+      SS_per_iteration[[iter+1]] = Ss
+      
+      #     Ks <- lapply(make.symmetric(U2 %*% t(U2) %*% K1)
+      
+      Ls <- lapply(Ss, function(S) laplacian(S, TRUE))
+      
+      es <- lapply(Ls, function(L) eigen(L))
+      os <- lapply(es, function(e) order(e$values, decreasing=FALSE)[1:k] )    
+      for (i in 1:length(es))
+        Us[[i]] <- es[[i]]$vectors[,os[[i]]]
+      
+    }
+
+    if (!storeEachIteration){
+    return(Ss)
+    }
+    
+    return(SS_per_iteration)
+}
+
+plot.cotraining.per.iteration = function(Ks, iters) {
+  priori.decomp <- build.dendrogam(rownames(Ks[[1]]))
+  
+  Rs <- cotraining(Ks, iters, TRUE)
+  
+  PDs <- list()
+  for (i in 1:length(Rs)){
+    Rss <- Rs[[i]]
+    PDs[[i]]<- rep(0, length(Rss))
+    for (j in 1:length(Rss)){
+      kernel = Rss[[j]]
+      #compute distance from kernel
+      myDist <- squared.euclidean.distance.of.kernel.matrix(kernel)
+      myDist <- as.dist(myDist)
+      
+      # pinned it to complete linkage
+      clusters <- hclust(myDist, method = 'complete')
+      
+      clusters.tree <- ape::as.phylo(clusters)
+      priori.tree <- priori.decomp$tree
+      path.difference <- phangorn::path.dist(clusters.tree, priori.tree, check.labels = T)
+      PDs[[i]][j] <- path.difference
+    }
+  }
+  
+  
+  
+  Iterations = 1:length(PDs)
+  View <- unlist(lapply(seq(length(PDs[[1]])), function(index) paste("View", index, sep="")))
+  #   View = c("View1","View2", "View3")
+  xxxd = expand.grid(Iterations=Iterations, View=View)
+  
+  view1_results <- unlist(lapply(PDs, function(PD_iter) PD_iter[1]))
+  view2_results <- unlist(lapply(PDs, function(PD_iter) PD_iter[2]))
+  view3_results <- unlist(lapply(PDs, function(PD_iter) PD_iter[3]))
+  
+  xxxd$PD = c(view1_results, view2_results, view3_results)
+
+  results <- c(view1_results, view2_results, view3_results)
+  min_y_lim <- min(unlist(results)) - 0.025
+  max_y_lim <- max(unlist(results)) + 0.025
+  
+  
+  #   plot(x=1:length(result1), y=result1)
+  #   plot(x=1:length(result2), y=result2)
+  
+  require(ggplot2)
+  t1<-theme(                              
+    plot.background = element_blank(), 
+    panel.grid.major = element_blank(), 
+    panel.grid.minor = element_blank(), 
+    panel.border = element_blank(), 
+    panel.background = element_blank(),
+    axis.line = element_line(size=.5),
+    axis.text=element_text(size=14),
+    axis.title=element_text(size=14,face="bold"),
+    legend.title=element_text(size=12, vjust=-12)
+    #     guide_colourbar.title = element_text(draw.ulim = FALSE, draw.llim = FALSE)
+    #    legend.key.height=unit(3,"line"),
+    #    legend.key.width=unit(3,"line")
+  )
+  
+  plot <- ggplot(xxxd, aes(Iterations, PD, colour = View))+ xlim(1,length(view1_results)) +t1 + ylim(min_y_lim, max_y_lim)  + geom_line(size=1.5) 
+}
+
+
 #Input: Similarity matrix for both views: K1, K2 (both K's are symmetric)
 #       k number of clusters
 #       iters: number of iterations

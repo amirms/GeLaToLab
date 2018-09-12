@@ -671,8 +671,9 @@ similarities <- function(x,fun) {
 # Output: matrix of similarities
 cos.sim <- function(x,y=NULL) {
   require(lsa)
-  return(cosine(x, y))
-  
+  K <- cosine(x, y)
+  K[is.nan(K)] <- 0
+  K
 }
 
 # calculate the squared Euclidean distances between two sets of vectors
