@@ -10,92 +10,99 @@ load_BoW <- function(prname){
   myBoW
 }
 
-lexsim.predictor <- function(lexsim_kernel_func, datasets, trains, validations){
-  # by convention, the third of dataset is lexical similarity
-  BoW <- datasets[[3]]
-  train <- trains[[3]]
-  validation <- validations[[3]]
-  
-  train_lexsim <- train
-  
-  lexsim_kernel <- lexsim_kernel_func(train_lexsim)
-  
-  compute_validation_score(lexsim_kernel, BoW, colnames(validation))
-}
 
-  # validation_feature_names <- colnames(validation)
-compute_validation_score <- function(K, original_data, validation_feature_names, canCategoryBeAllZero=FALSE) {
+compute_validation_score <- function(K, original_data, testIndices, canCategoryBeAllZero=FALSE) {
   print(dim(K))
   print(dim(original_data))
   stopifnot(rownames(K) == rownames(original_data))
   
-  all_feature_names <- colnames(original_data)
-  validation_feature_indices <- which(all_feature_names %in% validation_feature_names)
-  
-  all_AUC <- lapply(validation_feature_indices, function(feature_index) {
-    category <- original_data[,feature_index]
-    if(all(category == 0)) {
-      if(canCategoryBeAllZero){
-        return(0)
-      } else {
-        stop("Some validation feature was all zero and it was not expected.")
-      }
+    allPred = c();
+    # otherTruth = c();
+    for (i in 1:length(testIndices)) {
+      
+      kk = arrayInd(testIndices[i], dim(original_data))
+      
+      objectIndex = kk[1,1]
+      featureIndex =  kk[1,2]
+      
+      prediction <- compute_indirect_similarity(objectIndex, featureIndex, K, original_data)
+      allPred = c(allPred, prediction)
     }
     
-    prediction <- compute_indirect_similarity(feature_index, K, original_data)
-    calculate_AUC(category, prediction)
-  })
+    truth = original_data[testIndices];
+    
+    stopifnot(length(truth) == length(allPred))
+    
+    rocAUC = calculate_ROCAUC(truth, allPred)
   
-  all_AUC <- unlist(all_AUC)
-  all_AUC <- all_AUC[all_AUC > 0]
-  print(mean(all_AUC))
-  mean(all_AUC)
-  }
+    print("rocAUC")
+    print(rocAUC);
+    
+    prAUC = calculate_PRAUC(truth, allPred)
+    
+    print("prAUC")
+    print(prAUC);
+    
+    
+    f1 = calculate_max_F1(truth, allPred)
+    
+    print("max f1")
+    print(f1);
+  
+    list(rocAUC=rocAUC, prAUC=prAUC, f1=f1)
+}
 
 
-freqsim.predictor <- function(freqsim_kernel_func, datasets, trains, validations){
-  # by convention, the third of dataset is lexical similarity
+freqsim.predictor <- function(freqsim_kernel_func, datasets, trains, tests){
+  # by convention, the second of dataset is frequency
   freq <- datasets[[2]]
   train <- trains[[2]]
-  validation <- validations[[2]]
+  testIndices <- tests[[2]]
   
   freqsim_kernel <- freqsim_kernel_func(train)
   
-  compute_validation_score(freqsim_kernel, freq, colnames(validation))
+  compute_validation_score(freqsim_kernel, freq, testIndices)
 }
 
-cfgsim.predictor <- function(cfgsim_kernel_func, datasets, trains, validations){
-  # by convention, the third of dataset is lexical similarity
+cfgsim.predictor <- function(cfgsim_kernel_func, datasets, trains, tests){
+  # by convention, the first of dataset is cfg
   cfg <- datasets[[1]]
   train <- trains[[1]]
-  validation <- validations[[1]]
-  
-  # TESTED WORKS
-  train_cfg <- matrix(0, nrow=NROW(cfg), ncol=NCOL(cfg), dimnames = dimnames(cfg))
-  train_cfg[rownames(train),colnames(train)] <- train
+  testIndices <- tests[[1]]
   
   print(cfgsim_kernel_func)
-  cfgsim_kernel <- cfgsim_kernel_func(train_cfg)
+  cfgsim_kernel <- cfgsim_kernel_func(train)
   
-  compute_validation_score(cfgsim_kernel, cfg, colnames(validation), TRUE)
+  compute_validation_score(cfgsim_kernel, cfg, testIndices, TRUE)
 }
 
-multiview.predictor <- function(cfgsim_kernel_func, freqsim_kernel_func, lexsim_kernel_func, fuse_multi_view_func, datasets, trains, validations){
+lexsim.predictor <- function(lexsim_kernel_func, datasets, trains, tests){
+  # by convention, the third of dataset is lexical similarity
+  BoW <- datasets[[3]]
+  train <- trains[[3]]
+  testIndices <- tests[[3]]
+  
+  lexsim_kernel <- lexsim_kernel_func(train)
+  
+  compute_validation_score(lexsim_kernel, BoW, testIndices)
+}
+
+multiview.predictor <- function(cfgsim_kernel_func, freqsim_kernel_func, lexsim_kernel_func, fuse_multi_view_func, datasets, trains, tests){
   cfg <- datasets[[1]]
   cfg_train <- trains[[1]]
-  cfg_validation <- validations[[1]]
+  cfg_testIndices <- tests[[1]]
   
   freq <- datasets[[2]]
   freq_train <- trains[[2]]
-  freq_validation <- validations[[2]]
+  freq_testIndices <- tests[[2]]
   
   BoW <- datasets[[3]]
   BoW_train <- trains[[3]]
-  BoW_validation <- validations[[3]]
+  BoW_testIndices <- tests[[3]]
   
-  train_cfg <- matrix(0, nrow=NROW(cfg), ncol=NCOL(cfg), dimnames = dimnames(cfg))
-  train_cfg[rownames(cfg_train),colnames(cfg_train)] <- cfg_train
-  cfgsim_kernel <- cfgsim_kernel_func(train_cfg)
+  # train_cfg <- matrix(0, nrow=NROW(cfg), ncol=NCOL(cfg), dimnames = dimnames(cfg))
+  # train_cfg[rownames(cfg_train),colnames(cfg_train)] <- cfg_train
+  cfgsim_kernel <- cfgsim_kernel_func(cfg_train)
   
   freqsim_kernel <- freqsim_kernel_func(freq_train)
   
@@ -103,11 +110,11 @@ multiview.predictor <- function(cfgsim_kernel_func, freqsim_kernel_func, lexsim_
   
   fused_Ks <- fuse_multi_view_func(list(cfgsim_kernel, freqsim_kernel, lexsim_kernel))
   
-  cfg_auc <- compute_validation_score(fused_Ks[[1]], cfg, colnames(cfg_validation), TRUE)
+  cfg_auc <- compute_validation_score(fused_Ks[[1]], cfg, cfg_testIndices, TRUE)
   
-  freq_auc <- compute_validation_score(fused_Ks[[2]], freq, colnames(freq_validation))
+  freq_auc <- compute_validation_score(fused_Ks[[2]], freq, freq_testIndices)
   
-  lex_auc <- compute_validation_score(fused_Ks[[3]], BoW, colnames(BoW_validation))
+  lex_auc <- compute_validation_score(fused_Ks[[3]], BoW, BoW_testIndices)
   
   print("cfg AUC achieved")
   print(cfg_auc)
@@ -122,10 +129,10 @@ multiview.predictor <- function(cfgsim_kernel_func, freqsim_kernel_func, lexsim_
 }
 
 
-perform.prediction <- function(prname, kfold=5){
+perform.prediction <- function(prname, kfold=10){
   
   require(proxy)
-  
+  require(NMF)
   
   setwd("~/workspace")
   
@@ -147,6 +154,7 @@ perform.prediction <- function(prname, kfold=5){
   #freq <- freq[which(rownames(freq) %in% classnames),]
   freq <- freq[order(rownames(freq)),]
   
+  freq[is.na(freq)] <- 0
   freq[freq> 0] <- 1 
   
   no_transactions <- colSums(freq)
@@ -169,17 +177,14 @@ perform.prediction <- function(prname, kfold=5){
   dimnames(x) <- dimnames(BoW)
   BoW <- x
   
-  thresh = 1
-  BoW[BoW < thresh] = 0
+  noOfTopics <- 10
+  result <- nmf(BoW, noOfTopics, "Frobenius")
+  w <- basis(result)
+  mms <- apply(w, 1, mean)
+  w[w<mms] = 0
+  w[w>0] =1
   
-  #convert BoW into a membership matrix
-  BoW[BoW> 0] <- 1 
-  no_words <- colSums(BoW)
-  BoW <- BoW[, which(no_words > 0)]
-  
-  no_words_in_document <- rowSums(BoW)
-  BoW <- BoW[which(no_words_in_document > 0),]
-  
+  BoW <- w
   
   print("dimensions before intersection")
   print(dim(cfg))
@@ -204,7 +209,6 @@ perform.prediction <- function(prname, kfold=5){
   
   cfg <- remove_empty_nodes(cfg)
   names <- intersect_all(rownames(cfg), rownames(freq), rownames(BoW))
-  
   
   
   freq <- freq[names,]
@@ -282,11 +286,17 @@ perform.prediction <- function(prname, kfold=5){
   
   #perform nested cross validation
   datasets = list(cfg=cfg, freq=freq, BoW=BoW)
+  # datasets = list(freq=freq, BoW=BoW)
+  
   k=kfold
   # eval_funcs <- list(freqsim.predictors)
   eval_funcs <- list(cfgsim.predictors, freqsim.predictors, lexsim.predictors)
+  # eval_funcs <- list(freqsim.predictors, lexsim.predictors)
+  
+  trainingSet = doCVFold(datasets, k)
+  
   #single-view
-  single_view_results <- nested_cross_validate(datasets, k, eval_funcs)
+  single_view_results <- nested_cross_validate(trainingSet, datasets, k, eval_funcs)
   
   
   #FIND BEST EVAL FUNCTIONS
@@ -297,14 +307,10 @@ perform.prediction <- function(prname, kfold=5){
   best_cfg_eval_func <- cfgsim_kernel_funcs[[best_cfg_eval_func_idx]]
   best_freq_eval_func <- freqsim_kernel_funcs[[best_freq_eval_func_idx]]
   best_BoW_eval_func <- lexsim_kernel_funcs[[best_lex_eval_func_idx]]
-  
-  # return(single_view_results)
-  
-  
+
   cotraining_kernel_func <- function(Ks) {
-    cotraining(Ks, 50)
+    cotraining(Ks, 100)
   }
-  
   
   MKL_multiview_fuse_funcs <- list(add_kernel_func, product_kernel_func, cotraining_kernel_func, rgcca_func)
   MKL.multiview.predictors <- lapply(MKL_multiview_fuse_funcs, function(MKL_multiview_fuse_func) {
@@ -312,10 +318,10 @@ perform.prediction <- function(prname, kfold=5){
       multiview.predictor(best_cfg_eval_func, best_freq_eval_func, best_BoW_eval_func, MKL_multiview_fuse_func, datasets, trains, validations)
   })
   
-  MKL_add <- cross_validate(datasets, k, MKL.multiview.predictors[[1]])
-  MKL_product <- cross_validate(datasets, k, MKL.multiview.predictors[[2]])
-  co_training <-cross_validate(datasets, k, MKL.multiview.predictors[[3]])
-  k_cca <-cross_validate(datasets, k, MKL.multiview.predictors[[4]])
+  MKL_add <- cross_validate(trainingSet, datasets, k, MKL.multiview.predictors[[1]])
+  MKL_product <- cross_validate(trainingSet, datasets, k, MKL.multiview.predictors[[2]])
+  co_training <-cross_validate(trainingSet, datasets, k, MKL.multiview.predictors[[3]])
+  k_cca <-cross_validate(trainingSet, datasets, k, MKL.multiview.predictors[[4]])
   
   cfgsim.predictors <- function(datasets, trains, validations)
     cfgsim.predictor(best_cfg_eval_func, datasets, trains, validations)  
@@ -326,9 +332,9 @@ perform.prediction <- function(prname, kfold=5){
   lexsim.predictors <-     function(datasets, trains, validations)
       lexsim.predictor(best_BoW_eval_func, datasets, trains, validations)
 
-  cfgsim <- cross_validate(datasets, k, cfgsim.predictors)
-  freqsim <-cross_validate(datasets, k, freqsim.predictors)
-  lexsim <- cross_validate(datasets, k, lexsim.predictors)
+  cfgsim <- cross_validate(trainingSet, datasets, k, cfgsim.predictors)
+  freqsim <-cross_validate(trainingSet, datasets, k, freqsim.predictors)
+  lexsim <- cross_validate(trainingSet, datasets, k, lexsim.predictors)
   
   result =list(cfgsim=cfgsim, freqsim=freqsim, lexsim=lexsim, MKL_add=MKL_add, MKL_product=MKL_product, co_training=co_training, kcca=k_cca)
   
@@ -348,13 +354,14 @@ perform.prediction <- function(prname, kfold=5){
   write(lex_eval_string, file = paste("benchmark", prname, "Multiview/Recommender/Results/LEX_EVAL.txt", sep="/"))
   
   # CFG recommendation result
-  writeRecommenderResult(cfgsim, cfg_eval_string, list(max(MKL_add[1], MKL_product[1]), co_training[1], k_cca[1]), paste("benchmark", prname, "Multiview/Recommender/Results/CFG_PRED.txt", sep="/"))
+  # writeRecommenderResult(cfgsim, cfg_eval_string, list(max(MKL_add, MKL_product), co_training, k_cca), paste("benchmark", prname, "Multiview/Recommender/Results/CFG_PRED.txt", sep="/"))
+  writeRecommenderResult(cfgsim, cfg_eval_string, list(MKL_add, co_training, k_cca), 1, paste("benchmark", prname, "Multiview/Recommender/Results/CFG_PRED.txt", sep="/"))
   
   # Freq recommendation result
-  writeRecommenderResult(freqsim, freq_eval_string, list(max(MKL_add[2], MKL_product[2]), co_training[2], k_cca[2]), paste("benchmark", prname, "Multiview/Recommender/Results/FREQ_PRED.txt", sep="/"))
+  writeRecommenderResult(freqsim, freq_eval_string, list(MKL_add, co_training, k_cca), 2, paste("benchmark", prname, "Multiview/Recommender/Results/FREQ_PRED.txt", sep="/"))
   
   # lex recommendation result
-  writeRecommenderResult(lexsim, lex_eval_string, list(max(MKL_add[3], MKL_product[3]), co_training[3], k_cca[3]), paste("benchmark", prname, "Multiview/Recommender/Results/LEX_PRED.txt", sep="/"))
+  writeRecommenderResult(lexsim, lex_eval_string, list(MKL_add,  co_training, k_cca), 3, paste("benchmark", prname, "Multiview/Recommender/Results/LEX_PRED.txt", sep="/"))
   
 }
 
@@ -369,25 +376,46 @@ perform.prediction <- function(prname, kfold=5){
 # perform.prediction(projects[[9]])
 # perform.prediction(projects[[10]])
 
-writeRecommenderResult = function(baselineScore, baselineFunc, otherScores, filename) {
+writeRecommenderResult = function(baselineScores, baselineFunc, otherScores, viewNo = 1, filename) {
   setwd("~/workspace")
   
-  baselineScoreText = paste("$", round(baselineScore,3), "$", sep="")
-
+  
+  baselineScoreText = ""
+  line=""
+  
+  baselineScores = baselineScores[2:3,1];
+  
+  for (i in 1:length(baselineScores)) {
+    baselineScore = baselineScores[i]
+    scoreText = paste("$", round(baselineScore,2), "$", sep="")
+    
+    baselineScoreText = paste(baselineScoreText,scoreText, sep="&" )
+  }
+  
   line= paste(baselineScoreText, baselineFunc, sep="&")
   
+  
   for (i in 1:length(otherScores)){
-    currentScore = otherScores[[i]]
-    diffPercentage = ((currentScore - baselineScore) * 100) / baselineScore
-    diffPercentage <- round(diffPercentage,1)
     
-    sign = "" 
-    if (diffPercentage > 0) {
-      sign = "+"
-    } 
-    currentScoreText = paste("$", round(currentScore,3), "$", " ($", sign, diffPercentage, "\\%$)", sep="")
-
-    line = paste(line,currentScoreText, sep="&" )
+    otherScore <- otherScores[[i]]
+    
+    otherScore <- otherScore[2:3,viewNo]
+    
+    for (j in 1:length(baselineScores)){
+      baselineScore <-  baselineScores[j];
+      
+      currentScore = otherScore[j]
+      diffPercentage = ((currentScore - baselineScore) * 100) / baselineScore
+      diffPercentage <- round(diffPercentage,1)
+      
+      sign = "" 
+      if (diffPercentage > 0) {
+        sign = "+"
+      } 
+      currentScoreText = paste("$", round(currentScore,2), "$", " ($", sign, diffPercentage, "\\%$)", sep="")
+  
+      line = paste(line,currentScoreText, sep="&" )
+    }
   }
   
   write(line, file = filename)
@@ -510,7 +538,7 @@ drawROCCurves = function(prname, kfold=5){
   
   
   cotraining_kernel_func <- function(Ks) {
-    cotraining(Ks, 50)
+    cotraining(Ks, 100)
   }
   
   #perform nested cross validation
