@@ -79,10 +79,11 @@ compute_intersection_names <- function(names){
 
 
 
-cotraining <- function(Ks, iters, storeEachIteration=FALSE) {
+cotraining <- function(Ks, iters, storeEachIteration=FALSE, k=10) {
     Ls <- lapply(Ks, function(K) laplacian(K, TRUE))
     
     es <- lapply(Ls, function(L) eigen(L))
+    
     os <- lapply(es, function(e) order(e$values, decreasing=FALSE)[1:k] )
     
     Us <- list()
