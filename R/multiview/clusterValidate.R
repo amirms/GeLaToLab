@@ -1,4 +1,3 @@
-
 singleview.clusterer <- function(datasets, index, kernel_funcs) {
   mydata = datasets[[index]]
   
@@ -34,7 +33,6 @@ singleview.clusterer <- function(datasets, index, kernel_funcs) {
   }
   
   return(list(score=best_score, kernel_func = best_kernel_func, kernel_func_index=best_kernel_func_index))
-  
 }
 
 measure_cluster_analysis <- function(kernel, priori.decomp){
@@ -83,7 +81,7 @@ perform.clustering <- function(prname, rootFolder="org", pattern = "*.java"){
   setwd("~/workspace")
   
   #Read the set of classnames for running the experiment
-  classnames <- unlist(read.table(paste("benchmark", prname , paste("MULTIVIEW", "classnames.txt" ,sep="/") , sep="/")) )
+  # classnames <- unlist(read.table(paste("benchmark", prname , paste("MULTIVIEW", "classnames.txt" ,sep="/") , sep="/")) )
   
   #Load the adjacency matrix
   extensions= c("java/", "org/xml/", "javax/")
@@ -100,7 +98,9 @@ perform.clustering <- function(prname, rootFolder="org", pattern = "*.java"){
   #freq <- freq[which(rownames(freq) %in% classnames),]
   freq <- freq[order(rownames(freq)),]
   
+  freq[is.na(freq)] <- 0
   freq[freq> 0] <- 1 
+  
   
   no_transactions <- colSums(freq)
   freq <- freq[, which(no_transactions > 0)]
@@ -242,9 +242,6 @@ perform.clustering <- function(prname, rootFolder="org", pattern = "*.java"){
   best_freq_eval_func <- freq_single_view$kernel_func
   best_lex_eval_func <- lex_single_view$kernel_func
   
-  # return(single_view_results)
-  
-  
   cotraining_kernel_func <- function(Ks) {
     cotraining(Ks, 50)
   }
@@ -288,5 +285,4 @@ perform.clustering <- function(prname, rootFolder="org", pattern = "*.java"){
   # result = list(cfgsim=cfgsim, freqsim=freqsim, lexsim=lexsim, MKL_add=min(MKL_add), MKL_product=min(MKL_product), co_training=min(co_training), kcca=min(k_cca))
   all_string <- paste(round(cfgsim,2),cfg_eval_string,round(freqsim,2), freq_eval_string, round(lexsim,2), lex_eval_string, round(min(MKL_add),2), round(min(co_training),2), round(min(k_cca),2), sep="&")
   write(all_string, file = paste("benchmark", prname, "Multiview/Results/All_EVAL.txt", sep="/"))
-  
 }
