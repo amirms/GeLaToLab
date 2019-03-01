@@ -58,7 +58,6 @@ findCrossModal <- function(prname, query, single_view_results){
   cfg <- remove_empty_nodes(cfg)
   names <- intersect_all(rownames(cfg), rownames(freq), rownames(BoW))
   
-  
   freq <- freq[names,]
   freq <- freq[, colSums(freq) > 0]
   
@@ -140,7 +139,6 @@ findCrossModal <- function(prname, query, single_view_results){
   
   pcvs <- computeKernalPCA(Ks)
   
-  
   # In single view setting: 
   qv <- projectQueryIntoFeatureSpace(as.vector(alllexsim[dim(alllexsim)[1],1:(dim(alllexsim)[1] -1)]), pcv = pcvs[[3]], k = lexsim) 
   
@@ -153,19 +151,143 @@ findCrossModal <- function(prname, query, single_view_results){
   
   # In multi view setting: 
   r <- computeCanonicalMatching(pcvs)
-  lowqv <- qv %*% r$a[[3]] %*% diag(sqrt(r$AVE$AVE_X[[3]]))
-
+  
+  lowqv = qv%*%r$a[[3]]
+  
+  # TODO // sqrt r$kcca$Y[[3]]
+  # qv <- center_scale(qv)
+  # lowqv <- qv %*% ( r$a[[3]])^(-1) %*% diag(r$AVE$AVE_X[[3]]^(-1))
+  # lowqv <- qv %*% t(( diag(r$AVE$AVE_X[[3]]) %*% t(r$a[[3]]))^(-1))
+  
+  # lowqv <- qv %*% t(t(r$a[[3]])/sqrt(r$AVE$AVE_X[[3]]))
+  
+  # lowqv <- qv %*% r$a[[3]] %*% diag(sqrt(r$AVE$AVE_X[[3]]))
+  # lowqv <- qv %*% solve(r$a[[3]] %*% diag(r$AVE$AVE_X[[3]]))
+  
+  # require(MASS)
+  # lowqv <- qv %*% ginv(t(r$a[[3]])) # %*% diag((r$AVE$AVE_X[[3]])^(-1))
+  
+  # lowqv <- center_scale(lowqv)
+  # lowqv <- =(normalize_min_zero_unit(lowqv));
+  
+  # TODO Xr <- r$kcca$Y[[4]]
   Xr <- r$Y[[4]]
   Xr <- rbind(Xr, lowqv)
   
-  Xr <- apply(Xr, 2, normalize_min_zero_unit)
+  # Xr <- apply(Xr, 2, normalize_min_zero_unit)
   d <- as.matrix(dist(Xr))
   ranks <- sort(d[dim(alllexsim)[1],], decreasing = F)[1:10]
   ranks <- ranks[-1]
+  
+  # # 
+  # kcca_query_similarities <- rep(0, dim(BoW)[1]);
+  # 
+  # for (i in 1:(dim(Xr)[1] - 1)){
+  # 
+  #   # xr <- as.vector(normalize_min_zero_unit(Xr[i,]));
+  #   xr <- as.vector(Xr[i,])
+  #   kcca_query_similarities[i] <- cosine(as.vector(Xr[dim(Xr)[1],]), xr)
+  # }
+  # 
+  # names(kcca_query_similarities) <- rownames(Xr)[1:(dim(Xr)[1] - 1)]
+  # 
+  # ranks <- sort(kcca_query_similarities, decreasing = T)[1:10]
 }
 
 center_scale <- function(x) {
   as.vector(scale(as.vector(x), scale = FALSE))
+}
+
+
+plot3D <- function(Xr, ranks){
+  require(plotly)
+  
+Xr <- as.data.frame(Xr)
+colnames(Xr) <- c("comp1", "comp2")
+
+type <- rep(0,334)
+Xr <- cbind(Xr, type)
+Xr[334,3] <- 1
+
+Xr$type[which(Xr$type == 0)] <- 'data'
+Xr[names(ranks),"type"] = 'neighbors'
+Xr$type[which(Xr$type == 1)] <- 'query'
+
+
+
+actualResults <- c("VFSBrowser", "SearchBar", "SearchAndReplace", "HyperSearchResults")
+
+indices <- unlist(lapply(actualResults, function(r) which(unlist(lapply(rownames(Xr), function(name) grepl(r, name))))))
+
+Xr[indices,"type"] = 'actual'
+
+
+exclude <- c("BufferSegment", "ContentManager")
+excludeIndices <- unlist(lapply(exclude, function(r) which(unlist(lapply(rownames(Xr), function(name) grepl(r, name))))))
+Xr<- Xr[-excludeIndices,]
+
+
+  p <- plot_ly(Xr, x = ~comp1, y = ~comp2, color=~type, text = rownames(Xr), colors = c( '#800080', '#0C4B8E', '#00FF00',  '#BF382A')) %>%
+    add_markers() %>%
+    layout(scene = list(xaxis = list(title = 'comp1'),
+                        yaxis = list(title = 'comp2')))
+  # ,                        zaxis = list(title = 'comp3'))) z=~comp3,
+  
+}
+
+plot2d <- function(original_Xr) {
+  require(ggplot2)
+  Xr <- as.data.frame(original_Xr)
+  colnames(Xr) <- c("comp1", "comp2")
+  
+  type <- rep(0,334)
+  Xr <- cbind(Xr, type)
+  Xr[334,3] <- 1
+  
+  Xr$type[which(Xr$type == 0)] <- 'data'
+  # Xr[names(ranks),"type"] = 'neighbors'
+  Xr$type[which(Xr$type == 1)] <- 'query'
+  
+  exclude <- c("BufferSegment", "ContentManager")
+  excludeIndices <- unlist(lapply(exclude, function(r) which(unlist(lapply(rownames(Xr), function(name) grepl(r, name))))))
+  Xr<- Xr[-excludeIndices,]
+  
+  
+  pc1 <- ggplot(Xr, aes(x=comp2, y = comp1)) + labs(x ="Canonical Coordinate 1", y = "Canonical Coordinate 2")  + theme_bw()  + theme(text = element_text(size=22),
+                                                                     legend.text=element_text(size=22),
+    #axis.title.x=element_blank(), 
+                                                                     #axis.title.y=element_blank(),
+                                                                      # axis.text.x=element_text(),
+                                                                      # axis.text.x=element_text()
+                                                                      
+                                                                      # axis.ticks.x=element_blank(),
+                                                                      #panel.grid.major = element_blank(),
+                                                                      #panel.grid.minor = element_blank(),
+                                                                      # axis.line = element_line(colour = "black")
+    )
+  
+  # pc1 + geom_point()
+  # pc1 + geom_point(shape = 1, size = 4)
+  
+  pc2 <- pc1 + geom_point(size = 3, aes(colour=type)) +
+    scale_colour_manual(name="",  values = c("data"="blue", "query"="red", "neighbors"="darkgreen"))
+  
+  
+  ##lines
+  # actualResults <- c("VFSBrowser", "SearchBar", "SearchAndReplace", "HyperSearchResults")
+  # 
+  # indices <- unlist(lapply(actualResults, function(r) which(unlist(lapply(rownames(Xr), function(name) grepl(r, name))))))
+  
+  indices <- which(rownames(original_Xr) %in% names(ranks))
+  
+  df <- original_Xr[indices,]
+  df <- cbind(df, rep(original_Xr[dim(original_Xr)[1],1], length(indices)))
+  df <- cbind(df, rep(original_Xr[dim(original_Xr)[1],2], length(indices)))
+  
+  colnames(df) <- c("x1","y1", "x2", "y2")
+  df <- as.data.frame(df)
+  
+  pc3 <- pc2 + geom_segment(aes(x = y1, y = x1, xend = y2, yend = x2), size = 1.4, data = df, linetype=2)
 }
 
 
@@ -248,7 +370,7 @@ computeCanonicalMatching <- function(pcvs, ncomp=rep(2,4)) {
   C = matrix(c(0,0,0,1,0,0,0,1,0,0,0,1,1,1,1,0), 4, 4)
   
   # generalized CCA
-  return(rgcca(pcvs, C= C, tau=rep(0,4), scheme="centroid", ncomp=ncomp))
+  return(rgcca(pcvs, C= C, tau=rep(0,4), scheme="factorial", scale = FALSE, ncomp=ncomp))
 }
 
 

@@ -14,21 +14,21 @@ generate.multiview.clustering.table <- function() {
 generate.multiview.cfg.recommendation.table <- function() {
   resultsDirectory = "MULTIVIEW/Recommender/Results"
   filename = "CFG_PRED.txt"
-  NoOfFields = 5
+  NoOfFields = 7
   generate.multiview.table(resultsDirectory, filename, NoOfFields)
 }
 
 generate.multiview.freq.recommendation.table <- function() {
   resultsDirectory = "MULTIVIEW/Recommender/Results"
   filename = "FREQ_PRED.txt"
-  NoOfFields = 5
+  NoOfFields = 7
   generate.multiview.table(resultsDirectory, filename, NoOfFields)
 }
 
 generate.multiview.lex.recommendation.table <- function() {
   resultsDirectory = "MULTIVIEW/Recommender/Results"
   filename = "LEX_PRED.txt"
-  NoOfFields = 5
+  NoOfFields = 7
   generate.multiview.table(resultsDirectory, filename, NoOfFields)
 }
 
@@ -52,7 +52,7 @@ generate.multiview.table <- function(resultsDirectory, filename, noOfFields){
     if (file.exists(destfile)) {
 
       scores <- read.table(destfile)
-      line <- paste(line, paste(scores$V1, scores$V2, scores$V3, scores$V4, scores$V5) , sep="&")
+      line <- paste(line, paste(scores$V1, scores$V2, scores$V3, scores$V4, scores$V5, scores$V6, scores$V7, scores$V8) , sep="&")
     } else {
       line <- paste(line, rep("&", noOfFields-1),sep="&")[1]
     }

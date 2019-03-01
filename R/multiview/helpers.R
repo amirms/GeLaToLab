@@ -1,7 +1,7 @@
 lexEvalTypeToString <- function(func_index, eval_funcs) {
   #cosine
   if (func_index - length(eval_funcs[[1]]) <= 0) {
-    return("$K_{Cos}$")
+    return("$K_{BoW}$")
   }
   
   func_index <- func_index - length(eval_funcs[[1]])
@@ -22,7 +22,7 @@ lexEvalTypeToString <- function(func_index, eval_funcs) {
   
   #constant_kernel_func
   if (func_index - length(eval_funcs[[4]]) <= 0) {
-    return("$K_{Const}$")
+    return("$K_{Cons}$")
   }
   
   return("NOT FOUND")
@@ -34,7 +34,7 @@ cfgEvalTypeToString <- function(func_index, eval_funcs) {
 
     #exponential_diffusion_kernel_func
   if (func_index - length(eval_funcs[[1]]) <= 0) {
-    return("$K_{Exp}$")
+    return("$K_{ED}$")
   }
   
   func_index <- func_index - length(eval_funcs[[1]])
@@ -60,10 +60,10 @@ freqEvalTypeToString <- function(func_index, eval_funcs) {
   
   #gaussian_kernel_func
   if (func_index - length(eval_funcs[[2]]) <= 0) {
-    return("$K_{Gaus}$")
+    return("$K_{RBF}$")
   }
   
-  return("NOT FOUND")
+  stop("NOT FOUND")
   
 }
 

@@ -11,11 +11,31 @@ load_BoW <- function(prname){
 }
 
 
-compute_validation_score <- function(K, original_data, testIndices, canCategoryBeAllZero=FALSE) {
+compute_validation_score <- function(K, original_data, testIndices) {
   print(dim(K))
   print(dim(original_data))
   stopifnot(rownames(K) == rownames(original_data))
   
+  # all_feature_names <- colnames(original_data)
+  # validation_feature_indices <- which(all_feature_names %in% validation_feature_names)
+  # 
+  # print("validation_feature_indices")
+  # print(validation_feature_indices)
+  
+  
+  # all_AUC <- lapply(validation_feature_indices, function(feature_index) {
+  #   print("feature_index")
+  #   print(feature_index)
+  #   
+  #   category <- original_data[,feature_index]
+  #   if(all(category == 0)) {
+  #     if(canCategoryBeAllZero){
+  #       return(0)
+  #     } else {
+  #       stop("Some validation feature was all zero and it was not expected.")
+  #     }
+    # }
+
     allPred = c();
     # otherTruth = c();
     for (i in 1:length(testIndices)) {
@@ -25,11 +45,47 @@ compute_validation_score <- function(K, original_data, testIndices, canCategoryB
       objectIndex = kk[1,1]
       featureIndex =  kk[1,2]
       
+      # print("original_data[objectIndex, featureIndex]")
+      # print(original_data[objectIndex, featureIndex])
+      # 
+      # print("original_data[testIndices[i]]")
+      # print(original_data[testIndices[i]])
+      
+      # stopifnot(original_data[objectIndex, featureIndex] ==   original_data[testIndices[i]])
+      
       prediction <- compute_indirect_similarity(objectIndex, featureIndex, K, original_data)
       allPred = c(allPred, prediction)
+      
+      # otherTruth = c(otherTruth, original_data[objectIndex, featureIndex])
     }
     
+    #### <testing>
+    # allPred2 = c();
+    # 
+    # for (i in 1:dim(original_data)[1])
+    #   for (j in 1:dim(original_data)[2]) {
+    #     prediction <- compute_indirect_similarity(i, j, K, original_data)
+    #     allPred2 = c(allPred2, prediction)
+    # 
+    #   }
+    # 
+    # stopifnot(all(allPred2[testIndices] ==allPred) )
+    ##### </testing>          
+    
     truth = original_data[testIndices];
+    # 
+    # print("truth")
+    # print(truth)
+    # 
+    # print("otherTruth")
+    # print(otherTruth)
+    
+    # 
+    # print("truth")
+    # print(truth)
+    # 
+    # print("allPred")
+    # print(allPred)
     
     stopifnot(length(truth) == length(allPred))
     
@@ -50,6 +106,11 @@ compute_validation_score <- function(K, original_data, testIndices, canCategoryB
     print(f1);
   
     list(rocAUC=rocAUC, prAUC=prAUC, f1=f1)
+  # 
+  # all_AUC <- unlist(all_AUC)
+  # all_AUC <- all_AUC[all_AUC > 0]
+  # print(mean(all_AUC))
+  # mean(all_AUC)
 }
 
 
@@ -70,10 +131,14 @@ cfgsim.predictor <- function(cfgsim_kernel_func, datasets, trains, tests){
   train <- trains[[1]]
   testIndices <- tests[[1]]
   
+  # # TESTED WORKS
+  # train_cfg <- matrix(0, nrow=NROW(cfg), ncol=NCOL(cfg), dimnames = dimnames(cfg))
+  # train_cfg[rownames(train),colnames(train)] <- train
+  
   print(cfgsim_kernel_func)
   cfgsim_kernel <- cfgsim_kernel_func(train)
   
-  compute_validation_score(cfgsim_kernel, cfg, testIndices, TRUE)
+  compute_validation_score(cfgsim_kernel, cfg, testIndices)
 }
 
 lexsim.predictor <- function(lexsim_kernel_func, datasets, trains, tests){
@@ -110,7 +175,7 @@ multiview.predictor <- function(cfgsim_kernel_func, freqsim_kernel_func, lexsim_
   
   fused_Ks <- fuse_multi_view_func(list(cfgsim_kernel, freqsim_kernel, lexsim_kernel))
   
-  cfg_auc <- compute_validation_score(fused_Ks[[1]], cfg, cfg_testIndices, TRUE)
+  cfg_auc <- compute_validation_score(fused_Ks[[1]], cfg, cfg_testIndices)
   
   freq_auc <- compute_validation_score(fused_Ks[[2]], freq, freq_testIndices)
   
@@ -129,10 +194,11 @@ multiview.predictor <- function(cfgsim_kernel_func, freqsim_kernel_func, lexsim_
 }
 
 
-perform.prediction <- function(prname, kfold=10){
+perform.prediction <- function(prname, kfold=8){
   
   require(proxy)
   require(NMF)
+  require(lsa)
   
   setwd("~/workspace")
   
@@ -185,6 +251,18 @@ perform.prediction <- function(prname, kfold=10){
   w[w>0] =1
   
   BoW <- w
+  
+  # # thresh = 1
+  # # BoW[BoW < thresh] = 0
+  # 
+  # #convert BoW into a membership matrix
+  # BoW[BoW> 0] <- 1 
+  # no_words <- colSums(BoW)
+  # BoW <- BoW[, which(no_words > 0)]
+  # 
+  # no_words_in_document <- rowSums(BoW)
+  # BoW <- BoW[which(no_words_in_document > 0),]
+  
   
   print("dimensions before intersection")
   print(dim(cfg))
@@ -298,7 +376,6 @@ perform.prediction <- function(prname, kfold=10){
   #single-view
   single_view_results <- nested_cross_validate(trainingSet, datasets, k, eval_funcs)
   
-  
   #FIND BEST EVAL FUNCTIONS
   best_cfg_eval_func_idx <- single_view_results$best_eval_func_indices[[1]]
   best_freq_eval_func_idx <- single_view_results$best_eval_func_indices[[2]]
@@ -319,7 +396,8 @@ perform.prediction <- function(prname, kfold=10){
   })
   
   MKL_add <- cross_validate(trainingSet, datasets, k, MKL.multiview.predictors[[1]])
-  MKL_product <- cross_validate(trainingSet, datasets, k, MKL.multiview.predictors[[2]])
+  # FIXME REMOVE COMMENT
+  # MKL_product <- cross_validate(trainingSet, datasets, k, MKL.multiview.predictors[[2]])
   co_training <-cross_validate(trainingSet, datasets, k, MKL.multiview.predictors[[3]])
   k_cca <-cross_validate(trainingSet, datasets, k, MKL.multiview.predictors[[4]])
   
@@ -336,6 +414,8 @@ perform.prediction <- function(prname, kfold=10){
   freqsim <-cross_validate(trainingSet, datasets, k, freqsim.predictors)
   lexsim <- cross_validate(trainingSet, datasets, k, lexsim.predictors)
   
+  # FIXME REMOVE
+  MKL_product = cbind(c(0,0,0), c(0,0,0), c(0,0,0))
   result =list(cfgsim=cfgsim, freqsim=freqsim, lexsim=lexsim, MKL_add=MKL_add, MKL_product=MKL_product, co_training=co_training, kcca=k_cca)
   
   setwd("~/workspace")
@@ -663,3 +743,19 @@ findPrediction <- function(K, original_data, validation_feature_names) {
   
  return(list(categories=categories,predictions=predictions))
 }
+
+# 
+# for(i in 8:10) {
+#   result = tryCatch({
+#     outputFile <-file(paste(projects[[i]],"log","txt", sep="."))
+#     perform.prediction(projects[[i]])
+#   }, warning = function(w) {
+# 
+#    # warning-handler-code
+#   }, error = function(e) {
+#     writeLines(as.character(e), outputFile)
+#    # error-handler-code
+#   }, finally = {
+#    # cleanup-code
+#   })
+# }
