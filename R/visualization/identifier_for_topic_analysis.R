@@ -1,26 +1,26 @@
 identifiers_for_topic_analysis <- list( 
   #BSH
   c(#"BSHINIT",
-    "Interpreter", #"invoke", #"isWrapperType", 
-    #"setNameSpace","setAccessibility",
-    # "setStrictJava",  "BSHForStatement","getMethodNames","getSourceFileInfo",
-    #"BeanShell",
+    #"Interpreter", 
+     "isWrapperType", 
+    "setNameSpace",
+    "BeanShell",
     #"getResource", "importObject",
-    "pathToFile",  "strictJava", "setNameSpace", "exec", "eval",   "pwd",  "debug", 
-     "BSHPackageDeclaration" ,"BSHBinaryExpression"),# "searchJarForClasses" ), 
+    #"pathToFile",  #"strictJava",
+   "setNameSpace",  "eval",   "pwd" ), 
   
   #Regular Expression
-  c(#"escapeRule" , #"getMainRuleSet", "expression", "terminateChar", 
-    "startRegexp", "endRegexp", "regexp",  "MATCH_TYPE_CONTEXT", "MATCH_TYPE_RULE",
-    # "setSearchMatcher" ,
-    "pattern", "matchType") , #"MATCH_TYPE_CONTEXT", "MATCH_TYPE_RULE"  , "terminateChar", 
-  #"getLeadingWhiteSpace", #"match","escapeRegexp", 
+  c("getMainRuleSet", #"expression", 
+    "startRegexp", "endRegexp",  #"MATCH_TYPE_CONTEXT", 
+   # "MATCH_TYPE_RULE",
+    "setSearchMatcher" ,
+    "pattern",
+  "getLeadingWhiteSpace"), 
   
   
   #Text Area
-  c("caretLine", "findMatchingBracket" ,"highlight", "wrap", #"selectToMatchingBracket", #"lineHighlight" ,"highlight", "indentLine" ,"autoIndent" , 
-    "getLineCount" ,  "caret", "getCaretPosition", #"getCaretLine",
-    "getSelectedText"),#"isJavaBaseAssignable", "resolveJavaMethod","resolveJavaField"  ) , #"moveCaretPosition", 
+  c( "lineHighlight" ,"highlight", "indentLine" ,"autoIndent" , 
+    "getSelectedText","moveCaretPosition"),#"isJavaBaseAssignable", "resolveJavaMethod","resolveJavaField"  ) , #, 
   
   
   #XML support
@@ -28,33 +28,30 @@ identifiers_for_topic_analysis <- list(
   #"Registers" , "registerTransferableService", "saveRegisters", "setRegister",
   
   #User Interface
-  #"preferredLayoutSize" , 
-  c("toolbar", "menubar" ,
-    "showPopupMenu", "componentShown" ,# "ScrollLayout",
-    #"needFullRepaint", 
-    "focusedComponent",  "actionBar",#"JColorChooser" ,
+  c(
+    "componentShown" ,"ScrollLayout",
+    "focusedComponent",  "actionBar","JColorChooser" ,
     "showToolbars"),
   #"editPane", 
   #,"OPEN_DIALOG", "SAVE_DIALOG","addDockableWindow",
   
   #Core
-  c("settingsDirectory",   "zipFile", "processKeyEvent", "getKeyEventInterceptor", #"handleMessage", 
-    # "fileVFS", #"createVFSSession", , #"sourceFile" , "queueAWTRunner",
-    "invokeAction", "buffer",  "bufferCount"),# "bufferLoaded"),# "ZipInputStream"), "handleMessage",
-  #"bufferCount", #"bufferLoaded", "bufferOpened",  #"queueAWTRunner", "createVFSSession",
-  # "updateBufferStatus", 
-  #   "addBufferListener", #"MESSAGE", "performOperationsInAWTThread",
+  c("settingsDirectory",   #"zipFile", 
+    "processKeyEvent", "getKeyEventInterceptor", 
+    "createVFSSession", 
+  "bufferLoaded",
+     "addBufferListener"),#"MESSAGE",
   
   #plugins
-  c("activatePlugin"  , #"addPluginJAR","getJARCacheDirectory", #"PluginOptions", 
-    # "download", 
-   # "pluginMgr",#"pluginDirectory" ,
-    "author", "description", "version", "pluginSet", "getPluginJAR", "getPluginVersion","PluginOptions"),
+  c("activatePlugin"  , "addPluginJAR",#"getJARCacheDirectory",
+    "PluginOptions", 
+    "pluginMgr","pluginDirectory" ,
+   "getPluginVersion"),
   
   #Macros
   # "loadMacros",  "runScript", 
   
   #Search & Replace
   c("doBackwardSearch", "doForwardSearch", "searchStart",
-    "searchField",  "replace" , "replaceSelection")#"hyperSearch" , 
+    "searchField",  "hyperSearch" , "replaceSelection")# , 
 )
