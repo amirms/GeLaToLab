@@ -1,5 +1,5 @@
 #Input: a list of kernel matrices
-kgcca = function(Ks, ncomp=rep(3,3)) {
+kgcca = function(Ks, ncomp=rep(3,4)) {
   
   require(RGCCA)
   
@@ -12,10 +12,9 @@ kgcca = function(Ks, ncomp=rep(3,3)) {
   C = matrix(c(0,0,0,1,0,0,0,1,0,0,0,1,1,1,1,0), 4, 4)
   # 
   # tau = rep(1,4)
-  # tau = c(rep(1,3), 0) // co-intertia
-  # tau = c(rep(0,3), 1)
-  tau = rep(0,4)
-  return(rgcca(pcvs, C= C, tau=tau, ncomp=rep(3,4), scheme="centroid"))
+  tau = c(rep(1,3), 0) # co-intertia
+  # tau = rep(0,4) # Generalizied CCA
+  return(rgcca(pcvs, C= C, tau=tau, ncomp=ncomp, scheme="factorial"))
 }
 
 eigFeatures <- function(Ks,features = 0, th = 1e-4) {
@@ -57,11 +56,11 @@ rgcca_func <- function(Ks) {
   r <- kgcca(Ks)
   
   results = list()
+  
   for (i in 1:length(Ks)) {
-   Xr <- r$Y[[4]] # %*% t(r$a[[i]])
-   
-   Xr <- apply(Xr, 2, normalize_min_zero_unit)
-   #TODO make this a similarity matrix
+    Xr <- r$Y[[4]] #%*% diag(r$AVE$AVE_X[[4]]) #t(r$a[[4]])
+    Xr <- apply(Xr, 2, normalize_min_zero_unit)
+    
    D <- as.matrix(dist(Xr))
    sim <- 1 / (D / max(D))
    
